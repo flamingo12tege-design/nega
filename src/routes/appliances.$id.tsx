@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Lock } from "lucide-react";
@@ -31,6 +31,7 @@ function Page() {
   const [successOpen, setSuccessOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const locked = useStore((s) => s.lockedIds.includes(a.id));
+  const navigate = useNavigate();
 
   const purchase = async () => {
     if (purchasing) return;
@@ -47,9 +48,14 @@ function Page() {
     setPurchasing(false);
 
     if (error) {
-      toast.error(error.message === "Insufficient balance" ? "Insufficient balance" : "Purchase failed", {
-        description: error.message === "Insufficient balance" ? `You need ${etb(a.price)} to buy this package.` : error.message,
-      });
+      if (error.message.includes("Insufficient balance") || error.message.includes("insufficient balance")) {
+        toast.error("Insufficient balance", {
+          description: `Recharge at least ${etb(a.price)} to buy this package.`,
+        });
+        navigate({ to: "/recharge" });
+        return;
+      }
+      toast.error("Purchase failed", { description: error.message });
       return;
     }
 

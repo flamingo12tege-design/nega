@@ -61,7 +61,8 @@ using (id = auth.uid());
 -- Recharge proof fields
 alter table public.wallet_ledger
   add column if not exists transaction_ref text,
-  add column if not exists proof_url text;
+  add column if not exists proof_url text,
+  add column if not exists description text;
 
 -- Recharge requests use wallet_ledger with status='pending' and type='recharge'.
 -- Purchase users can only create pending recharge entries.
