@@ -6,7 +6,6 @@ import {
   Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
   Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft, LockKeyhole, Eye, EyeOff,
 } from "lucide-react";
-import { transactions, user } from "@/lib/mock-data";
 import { dailyCommission } from "@/lib/referral";
 import { etb, fmtDate } from "@/lib/format";
 import { actions, useReferral, useStore } from "@/lib/store";
@@ -33,13 +32,28 @@ function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const adminUsername = import.meta.env["VITE_ADMIN_USERNAME"] || "admin";
-    const adminPassword = import.meta.env["VITE_ADMIN_PASSWORD"] || "admin123";
 
-    if (username.trim() !== adminUsername || password !== adminPassword) {
-      setError("Incorrect username or password.");
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: username.trim().toLowerCase(),
+      password,
+    });
+
+    if (error || !data.user) {
+      setError("Incorrect email or password.");
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (profileError || profile?.role !== "admin") {
+      await supabase.auth.signOut();
+      setError("This account does not have admin access.");
       return;
     }
 
@@ -55,8 +69,8 @@ function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
         <p className="mt-1 text-center text-sm text-muted-foreground">Restricted CAS operations access</p>
 
         <label className="mt-6 block">
-          <span className="text-sm font-semibold">Username</span>
-          <input value={username} onChange={(e) => { setUsername(e.target.value); setError(""); }} autoComplete="username" className="mt-2 w-full rounded-xl border bg-surface px-4 py-3 outline-none focus:border-accent" placeholder="Admin username" />
+          <span className="text-sm font-semibold">Email</span>
+          <input type="email" value={username} onChange={(e) => { setUsername(e.target.value); setError(""); }} autoComplete="email" className="mt-2 w-full rounded-xl border bg-surface px-4 py-3 outline-none focus:border-accent" placeholder="tegene@tegene.com" />
         </label>
 
         <label className="mt-4 block">
@@ -282,18 +296,6 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                       <button onClick={() => { actions.setTeamMemberStatus(m.name, "Active"); toast.success(`${m.name} approved`); }} className="shrink-0 rounded-lg bg-success px-2 py-1 text-xs font-bold text-success-foreground">Approve</button>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              <div className={card}>
-                <p className="flex items-center gap-2 font-bold"><Wallet className="h-4 w-4 text-accent" />Earnings snapshot <span className="text-xs font-normal text-muted-foreground">sample data</span></p>
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {[
-                    ["This month", etb(user.earnings.thisMonth)],
-                    ["Team bonus", etb(user.earnings.teamBonus)],
-                    ["Total withdrawal", etb(user.earnings.totalWithdrawal)],
-                    ["Revenue", etb(user.earnings.totalRevenue)],
-                  ].map(([l, v]) => <div key={l} className="rounded-xl bg-surface p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="mt-0.5 font-bold">{v}</p></div>)}
                 </div>
               </div>
             </>
@@ -633,15 +635,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
 
               <div className={card}>
                 <p className="font-bold">Transaction ledger</p>
-                <p className="mt-1 text-xs text-muted-foreground">Recent system transaction data.</p>
-                <div className="mt-3 divide-y">
-                  {transactions.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                      <span className="min-w-0 truncate">{t.type} · {fmtDate(t.date)} <span className="text-xs text-muted-foreground">· {t.status}</span></span>
-                      <span className={`shrink-0 font-bold ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{etb(t.amount)}</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="mt-3 text-sm text-muted-foreground">Approved deposits and withdrawals appear in the two sections above.</p>
               </div>
             </>
           )}

@@ -1,8 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Copy, Hash, ImageUp } from "lucide-react";
-import { depositAccount } from "@/lib/mock-data";
 import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
@@ -23,8 +22,26 @@ function Page() {
   const [fileName, setFileName] = useState("");
   const [txn, setTxn] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [depositAccount, setDepositAccount] = useState<{ name: string; bank: string; account: string } | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key,value")
+        .in("key", ["deposit_name", "deposit_bank", "deposit_account"]);
+      const values = Object.fromEntries((data ?? []).map((row) => [row.key, row.value]));
+      setDepositAccount({
+        name: String(values.deposit_name ?? ""),
+        bank: String(values.deposit_bank ?? "CBE"),
+        account: String(values.deposit_account ?? ""),
+      });
+    };
+    void load();
+  }, []);
 
   const copy = async () => {
+    if (!depositAccount?.account) { toast.error("Deposit account is not available yet"); return; }
     await navigator.clipboard.writeText(depositAccount.account);
     toast.success("Account number copied");
   };
@@ -69,6 +86,8 @@ function Page() {
     navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: txn.trim() } });
   };
 
+  if (!depositAccount) return null;
+
   return (
     <div>
       <PageHeader title="Complete payment" subtitle="Send the amount, then submit your proof" back />
@@ -78,13 +97,17 @@ function Page() {
         <p className="mt-1 text-xs text-muted-foreground">via {method}</p>
 
         <div className="mt-4 divide-y rounded-2xl bg-surface px-4">
-          <div className="flex items-center justify-between gap-3 py-3"><span className="text-xs text-muted-foreground">Account name</span><span className="text-sm font-bold">{depositAccount.name}</span></div>
-          <div className="flex items-center justify-between gap-3 py-3"><span className="text-xs text-muted-foreground">Bank</span><span className="text-sm font-bold">{depositAccount.bank}</span></div>
+          <div className="flex items-center justify-between gap-3 py-3"><span className="text-xs text-muted-foreground">Account name</span><span className="text-sm font-bold">{depositAccount?.name || "Not configured"}</span></div>
+          <div className="flex items-center justify-between gap-3 py-3"><span className="text-xs text-muted-foreground">Bank</span><span className="text-sm font-bold">{depositAccount?.bank || "—"}</span></div>
           <div className="flex items-center justify-between gap-3 py-3">
             <span className="text-xs text-muted-foreground">Account number</span>
             <span className="flex items-center gap-2 text-sm font-bold">
-              {depositAccount.account}
-              <button onClick={copy} aria-label="Copy account number" className="press grid h-7 w-7 place-items-center rounded-lg bg-secondary text-primary"><Copy className="h-3.5 w-3.5" /></button>
+              {depositAccount?.account || "Not configured"}
+              {depositAccount?.account && (
+                <button onClick={copy} aria-label="Copy account number" className="press grid h-7 w-7 place-items-center rounded-lg bg-secondary text-primary">
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              )}
             </span>
           </div>
         </div>

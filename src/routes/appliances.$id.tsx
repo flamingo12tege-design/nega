@@ -1,11 +1,12 @@
 import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, Lock } from "lucide-react";
+import { Check, Lock, WalletCards, X } from "lucide-react";
 import { etb } from "@/lib/format";
 import { actions, getPackage, useStore } from "@/lib/store";
 import { SuccessModal } from "@/components/cas/SuccessModal";
 import { supabase } from "@/lib/supabase";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/appliances/$id")({
   loader: ({ params }) => {
@@ -30,6 +31,7 @@ function Page() {
   const a = Route.useLoaderData();
   const [successOpen, setSuccessOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [insufficientOpen, setInsufficientOpen] = useState(false);
   const locked = useStore((s) => s.lockedIds.includes(a.id));
   const navigate = useNavigate();
 
@@ -49,10 +51,7 @@ function Page() {
 
     if (error) {
       if (error.message.includes("Insufficient balance") || error.message.includes("insufficient balance")) {
-        toast.error("Insufficient balance", {
-          description: `Recharge at least ${etb(a.price)} to buy this package.`,
-        });
-        navigate({ to: "/recharge" });
+        setInsufficientOpen(true);
         return;
       }
       toast.error("Purchase failed", { description: error.message });
@@ -106,6 +105,35 @@ function Page() {
           </>
         }
       />
+
+      <Dialog open={insufficientOpen} onOpenChange={setInsufficientOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-warning/20 text-primary"><WalletCards className="h-8 w-8" /></span>
+            <DialogTitle className="mt-4 text-center text-2xl font-extrabold text-primary">Insufficient balance</DialogTitle>
+            <DialogDescription className="mt-2 text-center text-sm leading-6 text-muted-foreground">
+              Recharge at least{" "}
+              <span className="font-extrabold text-foreground">{etb(a.price)}</span> to buy this package.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setInsufficientOpen(false)}
+              className="press rounded-xl bg-secondary py-3.5 text-sm font-bold text-primary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/recharge" })}
+              className="press rounded-xl bg-accent py-3.5 text-sm font-bold text-accent-foreground"
+            >
+              Recharge
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

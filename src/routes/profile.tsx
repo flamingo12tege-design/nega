@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { UserRound, ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, Sparkles, PiggyBank, Landmark, Check } from "lucide-react";
-import { user } from "@/lib/mock-data";
 import { fmtDate, etb } from "@/lib/format";
 import { actions, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
@@ -20,25 +19,24 @@ function Page() {
   const items = [
     { l: "Transaction History", i: ReceiptText, to: "/wallet" as const },
     { l: "My Purchases", i: ShoppingBag, to: "/wallet" as const },
-    { l: "My Rewards", i: Trophy, to: "/gifts" as const },
     { l: "Referral History", i: Users, to: "/team" as const },
     { l: "Notifications", i: Bell, to: "/notifications" as const },
     { l: "Security Settings", i: ShieldCheck, on: soon("Security Settings") },
     { l: "Help and Support", i: LifeBuoy, on: soon("Help and Support") },
     { l: "About CAS", i: Info, to: "/about" as const },
   ];
-  const [profile, setProfile] = useState<{ member_id?: string; phone?: string } | null>(null);
-  const [email, setEmail] = useState(user.email);
+  const [profile, setProfile] = useState<{ member_id?: string; phone?: string; created_at?: string } | null>(null);
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     const loadProfile = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const authUser = sessionData.session?.user;
       if (!authUser) return;
-      setEmail(authUser.email ?? user.email);
+      setEmail(authUser.email ?? "");
       const { data } = await supabase
         .from("profiles")
-        .select("member_id,phone")
+        .select("member_id,phone,created_at")
         .eq("id", authUser.id)
         .maybeSingle();
       setProfile(data);
@@ -52,14 +50,14 @@ function Page() {
         <div className="flex items-center gap-4">
           <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent text-xl font-extrabold text-accent-foreground"><UserRound className="h-7 w-7" /></span>
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-extrabold">{profile?.member_id ?? user.memberId}</h1>
-            <p className="text-sm opacity-75">{profile?.phone ?? user.phone}</p>
+            <h1 className="truncate text-xl font-extrabold">{profile?.member_id}</h1>
+            <p className="text-sm opacity-75">{profile?.phone}</p>
             <p className="text-xs opacity-60">{email}</p>
           </div>
         </div>
       </header>
       <div className="-mt-10 mx-5 rounded-2xl bg-card p-4 shadow-card">
-        <p className="text-xs text-muted-foreground">Registered</p><p className="font-bold">{fmtDate(user.joined)}</p>
+        <p className="text-xs text-muted-foreground">Registered</p><p className="font-bold">{profile?.created_at ? fmtDate(profile.created_at) : "—"}</p>
       </div>
       <WalletStats wallet={wallet} />
       <div className="mx-5 mt-5 divide-y overflow-hidden rounded-2xl bg-card shadow-card">
@@ -88,8 +86,6 @@ function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> 
   const tiles = [
     { l: "This week", v: wallet.thisWeek, i: Clock3, t: "bg-tint-orange" },
     { l: "This month", v: wallet.thisMonth, i: ChartColumnIncreasing, t: "bg-tint-green" },
-    { l: "Team bonus", v: wallet.teamBonus, i: HandCoins, t: "bg-tint-violet" },
-    { l: "Pay income", v: wallet.payIncome, i: Banknote, t: "bg-tint-rose" },
   ];
   const rows = [
     { l: "This week", v: wallet.thisWeek, i: Sparkles },

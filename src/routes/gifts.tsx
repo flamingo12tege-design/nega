@@ -1,7 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Gift, Users, Sparkles, Tag } from "lucide-react";
-import { transactions } from "@/lib/mock-data";
-import { etb, fmtDate } from "@/lib/format";
 import { PageHeader, Section } from "@/components/cas/AppShell";
 
 export const Route = createFileRoute("/gifts")({
@@ -10,7 +8,7 @@ export const Route = createFileRoute("/gifts")({
 });
 
 function Page() {
-  const rewards = transactions.filter((t) => t.amount > 0 && t.type !== "Deposit");
+  const rewards: never[] = [];
   const cards = [
     { i: Gift, t: "Registration gift", d: "Credited when you joined CAS.", to: "/wallet" as const },
     { i: Users, t: "Referral rewards", d: "Earn when invited friends join.", to: "/team" as const },

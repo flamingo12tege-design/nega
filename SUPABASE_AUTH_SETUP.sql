@@ -27,7 +27,7 @@ begin
     generated_member_id,
     coalesce(new.raw_user_meta_data->>'phone', new.phone),
     'user',
-    300,
+    0,
     new.raw_user_meta_data->>'referral_code'
   )
   on conflict (id) do update set
@@ -332,5 +332,35 @@ create policy "Users create withdrawal requests"
    and type = 'withdrawal'
    and status = 'pending'
  );
+
+-- Set the production admin account after creating it in Authentication > Users.
+update public.profiles
+set role = 'admin'
+where id in (
+  select id
+  from auth.users
+  where email = 'tegene@tegene.com'
+);
+
+create table if not exists public.platform_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.platform_settings enable row level security;
+
+drop policy if exists "Platform settings are public" on public.platform_settings;
+create policy "Platform settings are public"
+ on public.platform_settings for select
+ to anon, authenticated
+ using (true);
+
+drop policy if exists "Admins manage platform settings" on public.platform_settings;
+create policy "Admins manage platform settings"
+ on public.platform_settings for all
+ to authenticated
+ using (public.is_admin())
+ with check (public.is_admin());
 
 notify pgrst, 'reload schema';

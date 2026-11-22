@@ -1,21 +1,16 @@
 import { useSyncExternalStore } from "react";
 import {
-  adminUsers,
   appliances as seedAppliances,
   defaultNewsImage,
   defaultPackageImage,
   initialLockedIds,
   initialTasks,
-  news as seedNews,
   referralRules,
   rewardRules,
-  team as seedTeam,
   user,
-  type AdminUser,
   type Appliance,
   type NewsItem,
   type TaskStatus,
-  type TeamMember,
 } from "./mock-data";
 import { claimStatus, todayKey, type DailyClaim } from "./daily-income";
 import {
@@ -43,28 +38,28 @@ type State = {
   payoutAccount: string;
   referral: ReferralSettings;
   team: TeamMember[];
+  adminUsers: AdminUser[];
   commissionClaims: CommissionClaim[];
   recruitmentCredits: RecruitmentCredit[];
   packages: Appliance[];
   lockedIds: string[];
   news: NewsItem[];
-  adminUsers: AdminUser[];
 };
 let state: State = {
-  purchases: [{ id: "p1", applianceId: "starter", method: "CBE Birr", status: "Approved", date: "2026-08-17" }],
-  tasks: initialTasks,
-  loggedIn: true,
-  walletBalance: user.wallet.available,
+  purchases: [],
+  tasks: [],
+  loggedIn: false,
+  walletBalance: 0,
   claims: [],
   payoutAccount: "",
   referral: { ...referralRules, dailyCommissionPercentByLevel: [...referralRules.dailyCommissionPercentByLevel] },
-  team: seedTeam,
+  team: [],
+  adminUsers: [],
   commissionClaims: [],
   recruitmentCredits: [],
   packages: seedAppliances,
   lockedIds: initialLockedIds,
-  news: seedNews,
-  adminUsers,
+  news: [],
 };
 const listeners = new Set<() => void>();
 const set = (fn: (s: State) => State) => { state = fn(state); listeners.forEach((l) => l()); };

@@ -1,15 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Lock, Ticket, RefreshCw, BadgeCheck, Copy } from "lucide-react";
+import { RefreshCw, BadgeCheck, Copy } from "lucide-react";
 import { normalizeEthiopianPhone } from "@/lib/phone";
-import { etb } from "@/lib/format";
-import { rewardRules } from "@/lib/mock-data";
 import { AuthLayout, Field, PasswordField, newCode } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
-
-// Sample invitation codes until the backend is connected (code -> inviter member ID).
-const INVITES: Record<string, string> = { CAS482: "CAS-100482", CAS513: "CAS-100513" };
 
 export const Route = createFileRoute("/register")({
   validateSearch: (s: Record<string, unknown>) => ({ ref: typeof s["ref"] === "string" ? s["ref"] : undefined }),
@@ -20,29 +15,15 @@ export const Route = createFileRoute("/register")({
 function Page() {
   const { ref } = Route.useSearch();
   const code = ref?.toUpperCase();
-  const inviter = code ? INVITES[code] : undefined;
   const [f, setF] = useState({ phone: "", pw: "", pw2: "", cap: "" });
   const [cap, setCap] = useState("····");
   const [err, setErr] = useState<Record<string, string | undefined>>({});
   const [memberId, setMemberId] = useState<string | null>(null);
   useEffect(() => setCap(newCode()), []);
 
-  if (!inviter) {
-    return (
-      <AuthLayout title="Invitation only" subtitle={code ? "This invitation link is invalid or no longer active." : undefined}>
-        <div className="grid place-items-center gap-4 text-center">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-secondary text-primary"><Lock className="h-7 w-7" /></span>
-          <p className="text-sm text-muted-foreground">CAS is an invitation-only community. You need an invitation link from an existing member to join.</p>
-          <Link to="/" className="press w-full rounded-2xl bg-primary py-3 font-bold text-primary-foreground">Return to home</Link>
-          <Link to="/login" className="text-sm font-semibold text-accent">I already have an account</Link>
-        </div>
-      </AuthLayout>
-    );
-  }
-
   if (memberId) {
     return (
-      <AuthLayout title="You're in!" subtitle={`Welcome to CAS. Your ${etb(rewardRules.registrationBonus)} registration bonus has been credited.`}>
+      <AuthLayout title="You're in!" subtitle="Welcome to CAS. Your account has been created.">
         <div className="rounded-3xl bg-primary p-6 text-center text-primary-foreground">
           <BadgeCheck className="mx-auto h-8 w-8 text-accent" />
           <p className="mt-2 text-xs uppercase tracking-[0.2em] opacity-70">Your member ID</p>
@@ -86,7 +67,7 @@ function Page() {
         member_id: generatedMemberId,
         phone,
         role: "user",
-        wallet_balance: rewardRules.registrationBonus,
+        wallet_balance: 0,
         referral_code: code ?? null,
       });
 
@@ -101,19 +82,7 @@ function Page() {
 
   return (
     <AuthLayout title="Join CAS" subtitle="Just your phone and a password.">
-      <div className="mb-5 flex items-center gap-3 rounded-2xl bg-tint-orange p-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Ticket className="h-5 w-5" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted-foreground">Invited by {inviter}</p>
-          <p className="font-extrabold tracking-wide">{code}</p>
-        </div>
-        <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
-      </div>
       <form onSubmit={submit} className="space-y-3">
-        <div>
-          <Field label="Invite code" value={code ?? ""} readOnly aria-readonly="true" />
-          <p className="mt-1 text-xs text-muted-foreground">Set by your invitation link — it can't be changed.</p>
-        </div>
         <Field label="Phone Number" inputMode="tel" placeholder="09XX XXX XXX" value={f.phone} onChange={up("phone")} error={err["phone"]} />
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />

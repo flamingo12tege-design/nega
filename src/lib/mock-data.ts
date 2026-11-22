@@ -59,8 +59,8 @@ export const user = {
   memberId: "CAS-100482",
   joined: "2026-08-14",
   referralCode: "CAS482",
-  wallet: { available: 1250, registrationBonus: rewardRules.registrationBonus, referralBonus: 450 },
-  earnings: { thisWeek: 897.61, thisMonth: 897.61, teamBonus: 4309.53, payIncome: 5900, totalRevenue: 22951, totalWithdrawal: 22122 },
+  wallet: { available: 0, registrationBonus: 0, referralBonus: 0 },
+  earnings: { thisWeek: 0, thisMonth: 0, teamBonus: 0, payIncome: 0, totalRevenue: 0, totalWithdrawal: 0 },
 };
 
 export type TxType = "Registration bonus" | "Recruitment bonus" | "Team commission" | "Task reward" | "Daily income" | "Purchase" | "Deposit" | "Adjustment";

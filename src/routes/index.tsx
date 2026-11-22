@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Tag, CircleHelp, ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
-import { heroSlides, notifications, user } from "@/lib/mock-data";
+import { heroSlides } from "@/lib/mock-data";
+import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { Section } from "@/components/cas/AppShell";
@@ -60,7 +61,8 @@ type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Pro
 
 function Home() {
   const packages = useStore((s) => s.packages);
-  const unread = notifications.filter((n) => n.unread).length;
+  const [memberId, setMemberId] = useState("CAS Member");
+  const [unread, setUnread] = useState(0);
   const quick = [
     { to: "/news", label: "News", icon: Newspaper },
     { to: "/gifts", label: "Gifts", icon: Gift },
@@ -79,6 +81,21 @@ function Home() {
     };
     window.addEventListener("beforeinstallprompt", handleInstallPrompt);
     return () => window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
+  }, []);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) return;
+      const [{ data: profile }, { count }] = await Promise.all([
+        supabase.from("profiles").select("member_id").eq("id", userId).maybeSingle(),
+        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("unread", true),
+      ]);
+      if (profile?.member_id) setMemberId(profile.member_id);
+      setUnread(count ?? 0);
+    };
+    void loadProfile();
   }, []);
 
   const installApp = async () => {
@@ -101,7 +118,7 @@ function Home() {
           <Logo className="h-10 lg:hidden" />
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Welcome back</p>
-            <p className="truncate font-extrabold">Hello, {user.memberId}!</p>
+            <p className="truncate font-extrabold">Hello, {memberId}!</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
