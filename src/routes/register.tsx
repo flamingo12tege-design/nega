@@ -72,7 +72,7 @@ function Page() {
     const { data, error } = await supabase.auth.signUp({
       email: phoneToEmail(phone),
       password: f.pw,
-      options: { data: { phone, member_id: generatedMemberId } },
+      options: { data: { phone, member_id: generatedMemberId, referral_code: code ?? null } },
     });
 
     if (error) {

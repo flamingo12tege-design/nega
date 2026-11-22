@@ -5,7 +5,8 @@ import { user } from "@/lib/mock-data";
 import { etb, fmtDate } from "@/lib/format";
 import { actions, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — CAS" }, { name: "description", content: "Manage your CAS account, wallet and settings." }, { property: "og:title", content: "Profile — CAS" }, { property: "og:description", content: "Manage your CAS account, wallet and settings." }] }),
@@ -25,21 +26,38 @@ function Page() {
     { l: "Help and Support", i: LifeBuoy, on: soon("Help and Support") },
     { l: "About CAS", i: Info, to: "/about" as const },
   ];
+  const [profile, setProfile] = useState<{ member_id?: string; phone?: string } | null>(null);
+  const [email, setEmail] = useState(user.email);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const authUser = sessionData.session?.user;
+      if (!authUser) return;
+      setEmail(authUser.email ?? user.email);
+      const { data } = await supabase
+        .from("profiles")
+        .select("member_id,phone")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      setProfile(data);
+    };
+    void loadProfile();
+  }, []);
   return (
     <div>
       <header className="bg-primary px-5 pb-16 pt-6 text-primary-foreground lg:rounded-b-3xl">
         <div className="flex items-center gap-4">
           <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent text-xl font-extrabold text-accent-foreground"><UserRound className="h-7 w-7" /></span>
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-extrabold">{user.memberId}</h1>
-            <p className="text-sm opacity-75">{user.phone}</p>
-            <p className="text-xs opacity-60">{user.email}</p>
+            <h1 className="truncate text-xl font-extrabold">{profile?.member_id ?? user.memberId}</h1>
+            <p className="text-sm opacity-75">{profile?.phone ?? user.phone}</p>
+            <p className="text-xs opacity-60">{email}</p>
           </div>
         </div>
       </header>
-      <div className="-mt-10 mx-5 grid grid-cols-2 gap-3 rounded-2xl bg-card p-4 shadow-card">
-        <div><p className="text-xs text-muted-foreground">Invite code</p><p className="font-bold">{user.referralCode}</p></div>
-        <div><p className="text-xs text-muted-foreground">Registered</p><p className="font-bold">{fmtDate(user.joined)}</p></div>
+      <div className="-mt-10 mx-5 rounded-2xl bg-card p-4 shadow-card">
+        <p className="text-xs text-muted-foreground">Registered</p><p className="font-bold">{fmtDate(user.joined)}</p>
       </div>
       <WalletStats />
       <div className="mx-5 mt-5 divide-y overflow-hidden rounded-2xl bg-card shadow-card">
@@ -55,7 +73,7 @@ function Page() {
             ? <Link key={l} to={to} className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted">{inner}</Link>
             : <button key={l} onClick={on} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted">{inner}</button>;
         })}
-        <button onClick={() => { actions.setLoggedIn(false); nav({ to: "/login" }); }} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-destructive hover:bg-muted">
+        <button onClick={async () => { await supabase.auth.signOut(); actions.setLoggedIn(false); nav({ to: "/login" }); }} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-destructive hover:bg-muted">
           <LogOut className="h-5 w-5" /><span className="text-sm font-semibold">Logout</span>
         </button>
       </div>

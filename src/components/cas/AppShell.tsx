@@ -42,12 +42,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 						</Link>
 					))}
 				</nav>
-				<Link
-					to="/casadmin"
-					className="mt-auto text-xs opacity-60 transition-opacity duration-200 hover:opacity-100"
-				>
-					Admin dashboard →
-				</Link>
 			</aside>
 			<main
 				key={path}
