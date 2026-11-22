@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3,
   Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
-  Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft,
+  Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft, LockKeyhole, Eye, EyeOff,
 } from "lucide-react";
 import { transactions, user } from "@/lib/mock-data";
 import { dailyCommission } from "@/lib/referral";
@@ -15,7 +15,7 @@ import { StatusPill } from "@/components/cas/StatusPill";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — CAS" }, { name: "description", content: "Manage CAS users, appliances, bonuses, tasks and news." }, { property: "og:title", content: "Admin Dashboard — CAS" }, { property: "og:description", content: "Manage CAS users, appliances, bonuses, tasks and news." }] }),
-  component: Page,
+  component: AdminRoute,
 });
 
 const tabs = [
@@ -26,7 +26,70 @@ type Tab = (typeof tabs)[number]["k"];
 
 const card = "rounded-2xl bg-card p-4 shadow-card";
 
-function Page() {
+function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const adminUsername = import.meta.env["VITE_ADMIN_USERNAME"] || "admin";
+    const adminPassword = import.meta.env["VITE_ADMIN_PASSWORD"] || "admin123";
+
+    if (username.trim() !== adminUsername || password !== adminPassword) {
+      setError("Incorrect username or password.");
+      return;
+    }
+
+    sessionStorage.setItem("cas_admin_authenticated", "true");
+    onSuccess();
+  };
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-surface px-5">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-card p-6 shadow-card">
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-tint-green text-primary"><LockKeyhole className="h-6 w-6" /></span>
+        <h1 className="mt-4 text-center text-2xl font-extrabold">Admin Sign In</h1>
+        <p className="mt-1 text-center text-sm text-muted-foreground">Restricted CAS operations access</p>
+
+        <label className="mt-6 block">
+          <span className="text-sm font-semibold">Username</span>
+          <input value={username} onChange={(e) => { setUsername(e.target.value); setError(""); }} autoComplete="username" className="mt-2 w-full rounded-xl border bg-surface px-4 py-3 outline-none focus:border-accent" placeholder="Admin username" />
+        </label>
+
+        <label className="mt-4 block">
+          <span className="text-sm font-semibold">Password</span>
+          <div className="mt-2 flex rounded-xl border bg-surface focus-within:border-accent">
+            <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => { setPassword(e.target.value); setError(""); }} autoComplete="current-password" className="min-w-0 flex-1 bg-transparent px-4 py-3 outline-none" placeholder="••••••••" />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} className="px-3 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button>
+          </div>
+        </label>
+
+        {error && <p className="mt-3 rounded-xl bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">{error}</p>}
+        <button className="press mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Sign In</button>
+        <Link to="/" className="mt-4 block text-center text-sm font-semibold text-primary">Back to CAS</Link>
+      </form>
+    </div>
+  );
+}
+
+function AdminRoute() {
+  const [authenticated, setAuthenticated] = useState(() =>
+    typeof window !== "undefined" && sessionStorage.getItem("cas_admin_authenticated") === "true"
+  );
+
+  if (!authenticated) return <AdminSignIn onSuccess={() => setAuthenticated(true)} />;
+
+  const signOut = () => {
+    sessionStorage.removeItem("cas_admin_authenticated");
+    setAuthenticated(false);
+  };
+
+  return <Page onSignOut={signOut} />;
+}
+
+function Page({ onSignOut }: { onSignOut: () => void }) {
   const [tab, setTab] = useState<Tab>("analytics");
   const purchases = useStore((s) => s.purchases);
   const tasks = useStore((s) => s.tasks);
@@ -86,6 +149,7 @@ function Page() {
           <div className="flex items-center gap-3">
             <span className="hidden text-xs text-muted-foreground md:block">{fmtDate(new Date().toISOString())}</span>
             <Link to="/" className="press rounded-lg bg-secondary px-3 py-1.5 text-sm font-semibold">Exit</Link>
+            <button type="button" onClick={onSignOut} className="press rounded-lg bg-destructive px-3 py-1.5 text-sm font-semibold text-destructive-foreground">Sign out</button>
           </div>
         </div>
       </header>
