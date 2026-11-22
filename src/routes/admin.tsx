@@ -1,0 +1,467 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import {
+  Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3,
+  Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
+  Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft,
+} from "lucide-react";
+import { transactions, user } from "@/lib/mock-data";
+import { dailyCommission } from "@/lib/referral";
+import { etb, fmtDate } from "@/lib/format";
+import { actions, useReferral, useStore } from "@/lib/store";
+import { Logo } from "@/components/cas/Logo";
+import { StatusPill } from "@/components/cas/StatusPill";
+
+export const Route = createFileRoute("/admin")({
+  head: () => ({ meta: [{ title: "Admin Dashboard — CAS" }, { name: "description", content: "Manage CAS users, appliances, bonuses, tasks and news." }, { property: "og:title", content: "Admin Dashboard — CAS" }, { property: "og:description", content: "Manage CAS users, appliances, bonuses, tasks and news." }] }),
+  component: Page,
+});
+
+const tabs = [
+  { k: "analytics", l: "Overview", i: BarChart3 }, { k: "users", l: "Users", i: Users }, { k: "appliances", l: "Packages", i: ShoppingBag },
+  { k: "bonuses", l: "Bonuses", i: Gift }, { k: "tasks", l: "Tasks", i: ListChecks }, { k: "news", l: "News", i: Newspaper }, { k: "transactions", l: "Ledger", i: ReceiptText },
+] as const;
+type Tab = (typeof tabs)[number]["k"];
+
+const card = "rounded-2xl bg-card p-4 shadow-card";
+
+function Page() {
+  const [tab, setTab] = useState<Tab>("analytics");
+  const purchases = useStore((s) => s.purchases);
+  const tasks = useStore((s) => s.tasks);
+  const team = useStore((s) => s.team);
+  const referral = useStore((s) => s.referral);
+  const balance = useStore((s) => s.walletBalance);
+  const packages = useStore((s) => s.packages);
+  const lockedIds = useStore((s) => s.lockedIds);
+  const news = useStore((s) => s.news);
+  const adminUsers = useStore((s) => s.adminUsers);
+  const { vip, recruitmentBonus, dailyCommission: teamCommission } = useReferral();
+  const [bonus, setBonus] = useState({
+    recruit: referral.recruitmentBonusPercent,
+    level1: referral.dailyCommissionPercentByLevel[0],
+    level2: referral.dailyCommissionPercentByLevel[1],
+    level3: referral.dailyCommissionPercentByLevel[2],
+  });
+  const [draft, setDraft] = useState({ title: "", desc: "", reward: "" });
+  const [packageDraft, setPackageDraft] = useState({ name: "", tier: "1", price: "", dailyPayout: "" });
+  const [newsDraft, setNewsDraft] = useState({ title: "", tag: "", body: "" });
+  const [search, setSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [adjustment, setAdjustment] = useState("");
+
+  const pendingPurchases = purchases.filter((p) => p.status === "Pending");
+  const pendingMembers = team.filter((m) => m.status === "Pending");
+  const addTask = () => {
+    const reward = Number(draft.reward);
+    if (!draft.title.trim()) { toast.error("Enter a task title"); return; }
+    if (!reward) { toast.error("Enter a reward amount"); return; }
+    actions.addTask(draft.title.trim(), draft.desc.trim() || "Complete this task to earn a reward.", reward);
+    setDraft({ title: "", desc: "", reward: "" });
+    toast.success("Bonus task added");
+  };
+  const approve = (id: string) => {
+    actions.setTask(id, "Completed");
+    toast.success("Reward approved");
+  };
+  const preview = [
+    { label: "A-Level · 20 people", amount: dailyCommission(3000 * 20, bonus.level1) },
+    { label: "B-Level · 40 people", amount: dailyCommission(3000 * 40, bonus.level2) },
+    { label: "C-Level · 90 people", amount: dailyCommission(3000 * 90, bonus.level3) },
+  ];
+  const previewTotal = preview.reduce((sum, row) => sum + row.amount, 0);
+  const filteredUsers = adminUsers.filter((u) => `${u.id} ${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase().trim()));
+  const selectedUser = adminUsers.find((u) => u.id === selectedUserId) ?? null;
+
+  return (
+    <div className="min-h-screen bg-surface">
+      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Logo className="h-8" />
+            <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">Admin</span>
+            <span className="hidden text-sm text-muted-foreground sm:block">Operations console</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-xs text-muted-foreground md:block">{fmtDate(new Date().toISOString())}</span>
+            <Link to="/" className="press rounded-lg bg-secondary px-3 py-1.5 text-sm font-semibold">Exit</Link>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6">
+        <nav aria-label="Admin sections" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:sticky lg:top-20 lg:mx-0 lg:h-fit lg:flex-col lg:overflow-visible lg:px-0">
+          {tabs.map(({ k, l, i: Icon }) => (
+            <button
+              key={k}
+              onClick={() => { setTab(k); setSelectedUserId(null); }}
+              className={`press flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "bg-card shadow-card"}`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />{l}
+              {k === "appliances" && pendingPurchases.length > 0 && <span className="ml-auto rounded-full bg-warning/20 px-1.5 text-[11px] font-bold text-primary">{pendingPurchases.length}</span>}
+              {k === "users" && pendingMembers.length > 0 && <span className="ml-auto rounded-full bg-warning/20 px-1.5 text-[11px] font-bold text-primary">{pendingMembers.length}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <main key={tab} className="rise min-w-0 space-y-4">
+          {tab === "analytics" && (
+            <>
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                {[
+                  { l: "Members", v: adminUsers.length.toLocaleString(), s: "Registered accounts" },
+                  { l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
+                  { l: "Your VIP", v: String(vip), s: "Highest approved tier" },
+                  { l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
+                ].map(({ l, v, s }) => (
+                  <div key={l} className={card}><p className="text-xs text-muted-foreground">{l}</p><p className="mt-1 text-xl font-extrabold">{v}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{s}</p></div>
+                ))}
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className={card}>
+                  <p className="flex items-center gap-2 font-bold"><TrendingUp className="h-4 w-4 text-accent" />Commission rules in effect</p>
+                  <div className="mt-3 divide-y rounded-xl bg-surface px-3 text-sm">
+                    <div className="flex items-center justify-between gap-2 py-2"><span>Recruitment bonus · direct</span><span className="font-bold text-primary">{referral.recruitmentBonusPercent}%</span></div>
+                    <div className="flex items-center justify-between gap-2 py-2"><span>Daily commission · A / B / C</span><span className="font-bold text-primary">{referral.dailyCommissionPercentByLevel.join(" / ")}%</span></div>
+                    <div className="flex items-center justify-between gap-2 py-2"><span>Recruitment earned</span><span className="font-bold text-primary">{etb(recruitmentBonus)}</span></div>
+                    <div className="flex items-center justify-between gap-2 py-2"><span>Team commission / day</span><span className="font-bold text-primary">{etb(teamCommission)}</span></div>
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">Daily commissions stop after the member's 90-day payout window. From VIP 1 up, the inviter must be at least the invitee's VIP.</p>
+                </div>
+
+                <div className={card}>
+                  <p className="flex items-center gap-2 font-bold"><Clock3 className="h-4 w-4 text-accent" />Needs attention</p>
+                  <p className="mt-3 text-xs font-semibold text-muted-foreground">PENDING PACKAGE REQUESTS · {pendingPurchases.length}</p>
+                  {pendingPurchases.length === 0 ? <p className="mt-1 text-sm text-muted-foreground">Nothing to review.</p> : pendingPurchases.slice(0, 3).map((p) => (
+                    <div key={p.id} className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate">{packages.find((a) => a.id === p.applianceId)?.name} · {p.method}</span>
+                      <button onClick={() => { actions.setPurchaseStatus(p.id, "Approved"); toast.success("Purchase approved"); }} className="shrink-0 rounded-lg bg-success px-2 py-1 text-xs font-bold text-success-foreground">Approve</button>
+                    </div>
+                  ))}
+                  <p className="mt-4 text-xs font-semibold text-muted-foreground">PENDING MEMBERS · {pendingMembers.length}</p>
+                  {pendingMembers.length === 0 ? <p className="mt-1 text-sm text-muted-foreground">Nothing to review.</p> : pendingMembers.map((m) => (
+                    <div key={m.name} className="mt-2 flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate">{m.name} · level {m.level} · VIP {m.vip}</span>
+                      <button onClick={() => { actions.setTeamMemberStatus(m.name, "Active"); toast.success(`${m.name} approved`); }} className="shrink-0 rounded-lg bg-success px-2 py-1 text-xs font-bold text-success-foreground">Approve</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={card}>
+                <p className="flex items-center gap-2 font-bold"><Wallet className="h-4 w-4 text-accent" />Earnings snapshot <span className="text-xs font-normal text-muted-foreground">sample data</span></p>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["This month", etb(user.earnings.thisMonth)],
+                    ["Team bonus", etb(user.earnings.teamBonus)],
+                    ["Total withdrawal", etb(user.earnings.totalWithdrawal)],
+                    ["Revenue", etb(user.earnings.totalRevenue)],
+                  ].map(([l, v]) => <div key={l} className="rounded-xl bg-surface p-3"><p className="text-xs text-muted-foreground">{l}</p><p className="mt-0.5 font-bold">{v}</p></div>)}
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "users" && (
+            selectedUser ? (
+              <div className="space-y-4">
+                <button onClick={() => setSelectedUserId(null)} className="press flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4" />All members</button>
+
+                <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+                  <div>
+                    <p className="font-bold">{selectedUser.name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedUser.id} · joined {fmtDate(selectedUser.joined)} · {selectedUser.phone}</p>
+                  </div>
+                  <button
+                    onClick={() => { const status = selectedUser.status === "Banned" ? "Active" : "Banned"; actions.setUserStatus(selectedUser.id, status); toast.success(`${selectedUser.name} ${status === "Banned" ? "banned" : "restored"}`); }}
+                    className={`press flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${selectedUser.status === "Banned" ? "bg-success text-success-foreground" : "bg-secondary text-destructive"}`}
+                  >
+                    {selectedUser.status === "Banned" ? <RotateCcw className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                    {selectedUser.status === "Banned" ? "Restore" : "Ban"}
+                  </button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className={card}><p className="text-xs text-muted-foreground">Balance</p><p className="mt-1 text-xl font-extrabold text-primary">{etb(selectedUser.balance)}</p></div>
+                  <div className={card}><p className="text-xs text-muted-foreground">Active packages</p><p className="mt-1 text-xl font-extrabold">{selectedUser.purchases.filter((p) => p.status === "Approved").length}</p></div>
+                  <div className={card}><p className="text-xs text-muted-foreground">Total deposits</p><p className="mt-1 text-xl font-extrabold">{etb(selectedUser.deposits.reduce((sum, d) => sum + d.amount, 0))}</p></div>
+                </div>
+
+                <div className={card}>
+                  <p className="font-bold">Adjust balance</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Credits are recorded as deposits; debits as adjustments.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <input inputMode="numeric" value={adjustment} onChange={(e) => setAdjustment(e.target.value.replace(/\D/g, ""))} placeholder="Amount (ETB)" className="min-w-0 flex-1 rounded-xl border bg-surface px-4 py-2.5" />
+                    <button onClick={() => { const amount = Number(adjustment); if (!amount) { toast.error("Enter an amount"); return; } actions.adjustUserBalance(selectedUser.id, amount); setAdjustment(""); toast.success(`${etb(amount)} credited`); }} className="press flex items-center gap-1.5 rounded-xl bg-success px-4 py-2.5 text-sm font-bold text-success-foreground"><ArrowUpRight className="h-4 w-4" />Add</button>
+                    <button onClick={() => { const amount = Number(adjustment); if (!amount) { toast.error("Enter an amount"); return; } actions.adjustUserBalance(selectedUser.id, -amount); setAdjustment(""); toast.success(`${etb(amount)} removed`); }} className="press flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-destructive"><ArrowDownRight className="h-4 w-4" />Remove</button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <div className={card}>
+                    <p className="font-bold">Packages</p>
+                    <div className="mt-3 divide-y">
+                      {selectedUser.purchases.length === 0 ? <p className="py-3 text-sm text-muted-foreground">No package requests.</p> : selectedUser.purchases.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                          <span className="min-w-0 truncate">{packages.find((a) => a.id === p.applianceId)?.name ?? p.applianceId} · {fmtDate(p.date)}</span>
+                          <StatusPill s={p.status} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={card}>
+                    <p className="font-bold">Deposits</p>
+                    <div className="mt-3 divide-y">
+                      {selectedUser.deposits.length === 0 ? <p className="py-3 text-sm text-muted-foreground">No deposits recorded.</p> : selectedUser.deposits.map((d) => (
+                        <div key={d.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                          <span className="min-w-0 truncate">{d.method} · {fmtDate(d.date)} · <span className="text-xs text-muted-foreground">{d.status}</span></span>
+                          <span className="shrink-0 font-bold text-success">+{etb(d.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={card}>
+                  <p className="font-bold">Transaction history</p>
+                  <div className="mt-3 divide-y">
+                    {selectedUser.history.map((h) => (
+                      <div key={h.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                        <span className="min-w-0 truncate">{h.type} · {fmtDate(h.date)} <span className="text-xs text-muted-foreground">· {h.status}</span></span>
+                        <span className={`shrink-0 font-bold ${h.amount < 0 ? "text-destructive" : "text-success"}`}>{h.amount > 0 ? "+" : ""}{etb(h.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className={card}>
+                  <p className="font-bold">Member directory <span className="text-sm font-normal text-muted-foreground">· {adminUsers.length} members</span></p>
+                  <p className="mt-1 text-xs text-muted-foreground">Search by ID, name or phone. Select a member to open their profile.</p>
+                  <label className="mt-3 flex items-center gap-2 rounded-xl border bg-surface px-3">
+                    <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search members…" className="min-w-0 flex-1 bg-transparent py-2.5 outline-none" />
+                  </label>
+                  <div className="mt-3 divide-y">
+                    {filteredUsers.length === 0 ? (
+                      <p className="py-5 text-center text-sm text-muted-foreground">No members match “{search}”.</p>
+                    ) : filteredUsers.map((u) => (
+                      <button key={u.id} onClick={() => { setSelectedUserId(u.id); setAdjustment(""); }} className="flex w-full items-center justify-between gap-2 py-3 text-left hover:text-primary">
+                        <span className="min-w-0">
+                          <span className="block truncate font-bold">{u.name}</span>
+                          <span className="text-xs text-muted-foreground">{u.id} · {u.phone}</span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${u.status === "Banned" ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success"}`}>{u.status}</span>
+                          <span className="font-bold">{etb(u.balance)}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={card}>
+                  <p className="font-bold">Pending recruit approvals</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Approving a direct recruit credits their one-time recruitment bonus.</p>
+                  <div className="mt-3 divide-y">
+                    {team.filter((u) => u.status === "Pending").length === 0 ? <p className="py-3 text-sm text-muted-foreground">Nothing to review.</p> : team.filter((u) => u.status === "Pending").map((u) => (
+                      <div key={u.name} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                        <div className="min-w-0"><p className="truncate font-bold">{u.name}</p><p className="text-xs text-muted-foreground">Level {u.level} · VIP {u.vip} · {etb(u.dailyIncome)}/day</p></div>
+                        <button onClick={() => { actions.setTeamMemberStatus(u.name, "Active"); toast.success(`${u.name} approved`, { description: u.level === 1 ? "Recruitment bonus credited." : "Team commission is now active." }); }} className="shrink-0 rounded-lg bg-success px-3 py-1.5 text-xs font-bold text-success-foreground">Approve</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          )}
+
+          {tab === "appliances" && (
+            <>
+              <div className={card}>
+                <p className="font-bold">Add a package</p>
+                <p className="mt-1 text-xs text-muted-foreground">New packages use the standard CAS image and appear in the catalogue immediately.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {([
+                    ["name", "Package name", "text"],
+                    ["tier", "Tier", "number"],
+                    ["price", "Price (ETB)", "number"],
+                    ["dailyPayout", "Daily payout (ETB)", "number"],
+                  ] as const).map(([k, label, type]) => (
+                    <label key={k} className="block"><span className="text-xs font-semibold">{label}</span>
+                      <input type={type} value={packageDraft[k]} onChange={(e) => setPackageDraft({ ...packageDraft, [k]: e.target.value })} placeholder={label} className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5" />
+                    </label>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    if (!actions.addPackage({ name: packageDraft.name, tier: Number(packageDraft.tier), price: Number(packageDraft.price), dailyPayout: Number(packageDraft.dailyPayout) })) { toast.error("Enter a name, price and daily payout"); return; }
+                    setPackageDraft({ name: "", tier: "1", price: "", dailyPayout: "" });
+                    toast.success("Package added");
+                  }}
+                  className="press mt-3 flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground"><Plus className="h-4 w-4" />Add package</button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {packages.map((a) => {
+                  const locked = lockedIds.includes(a.id);
+                  return (
+                    <div key={a.id} className={`${card} flex items-start gap-3`}>
+                      <img src={a.image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold">{a.name}</p>
+                        <p className="text-sm font-semibold text-primary">{etb(a.price)}</p>
+                        <p className="text-xs text-muted-foreground">{etb(a.dailyPayout)}/day · {etb(a.dailyPayout * 90)} in 90 days</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-primary">Tier {a.tier}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${locked ? "bg-warning/20 text-primary" : "bg-success/15 text-success"}`}>{locked ? "Locked" : "Open"}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button onClick={() => { actions.togglePackageLock(a.id); toast.success(locked ? `${a.name} unlocked` : `${a.name} locked`); }} aria-label={locked ? `Unlock ${a.name}` : `Lock ${a.name}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-primary">{locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}</button>
+                        <button onClick={() => { actions.removePackage(a.id); toast(`${a.name} removed`); }} aria-label={`Remove ${a.name}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className={card}>
+                <p className="font-bold">Purchase requests</p>
+                <p className="mt-1 text-xs text-muted-foreground">Approving a request makes the package active for daily income claims.</p>
+                <div className="mt-3 divide-y">
+                  {purchases.map((p) => (
+                    <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                      <span className="min-w-0 flex-1 truncate">{packages.find((a) => a.id === p.applianceId)?.name ?? p.applianceId} · {p.method} · {fmtDate(p.date)}</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <StatusPill s={p.status} />
+                        {p.status === "Pending" && (
+                          <>
+                            <button onClick={() => { actions.setPurchaseStatus(p.id, "Approved"); toast.success("Purchase approved"); }} aria-label="Approve purchase" className="grid h-8 w-8 place-items-center rounded-lg bg-success text-success-foreground"><Check className="h-4 w-4" /></button>
+                            <button onClick={() => { actions.setPurchaseStatus(p.id, "Rejected"); toast("Purchase rejected"); }} aria-label="Reject purchase" className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><X className="h-4 w-4" /></button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "bonuses" && (
+            <>
+              <div className={card}>
+                <p className="font-bold">Referral & commission rules</p>
+                <p className="mt-1 text-xs text-muted-foreground">These percentages drive the Team page, the daily commission claim and all previews. Changes save to the live store.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {([
+                    ["recruit", "Recruitment bonus · direct (%)"],
+                    ["level1", "Daily commission · A-Level (%)"],
+                    ["level2", "Daily commission · B-Level (%)"],
+                    ["level3", "Daily commission · C-Level (%)"],
+                  ] as const).map(([k, l]) => (
+                    <label key={k} className="block"><span className="text-sm font-semibold">{l}</span>
+                      <input type="number" min={0} value={bonus[k]} onChange={(e) => setBonus({ ...bonus, [k]: Number(e.target.value) })} className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5" /></label>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">Rules: 90-day payout cap per package · inviter VIP must be equal or higher from VIP 1 up · recruitment bonus is direct invites only.</p>
+                <button
+                  onClick={() => {
+                    actions.setReferralRules({ recruitmentBonusPercent: bonus.recruit, dailyCommissionPercentByLevel: [bonus.level1, bonus.level2, bonus.level3] });
+                    toast.success("Bonus rules saved");
+                  }}
+                  className="press mt-4 w-full rounded-xl bg-accent py-3 font-bold text-accent-foreground sm:w-auto sm:px-6"
+                >
+                  Save rules
+                </button>
+              </div>
+              <div className={card}>
+                <p className="font-bold">Live preview</p>
+                <p className="mt-1 text-xs text-muted-foreground">What a 20 / 40 / 90 team earns each day when every member earns ETB 3,000.</p>
+                <div className="mt-3 divide-y rounded-xl bg-surface px-3 text-sm">
+                  {preview.map((row) => <div key={row.label} className="flex items-center justify-between gap-2 py-2"><span>{row.label}</span><span className="font-bold text-primary">+{etb(row.amount)}</span></div>)}
+                  <div className="flex items-center justify-between gap-2 py-2"><span className="font-bold">Total team daily income</span><span className="text-base font-extrabold text-primary">{etb(previewTotal)}</span></div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "tasks" && (
+            <>
+              <div className={card}>
+                <p className="font-bold">Add bonus task</p>
+                <p className="mt-1 text-xs text-muted-foreground">Only tasks you add here appear on the user Tasks page.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Task title" className="w-full rounded-xl border bg-surface px-4 py-2.5" />
+                  <input value={draft.desc} onChange={(e) => setDraft({ ...draft, desc: e.target.value })} placeholder="Short description" className="w-full rounded-xl border bg-surface px-4 py-2.5" />
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input inputMode="numeric" value={draft.reward} onChange={(e) => setDraft({ ...draft, reward: e.target.value.replace(/\D/g, "") })} placeholder="Reward (ETB)" className="min-w-0 flex-1 rounded-xl border bg-surface px-4 py-2.5" />
+                  <button onClick={addTask} className="press flex shrink-0 items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 font-bold text-accent-foreground"><Plus className="h-4 w-4" />Add</button>
+                </div>
+              </div>
+              {tasks.length === 0 ? (
+                <div className={`${card} text-center text-sm text-muted-foreground`}>No bonus tasks yet. Users only see daily income and team commission until you add one.</div>
+              ) : (
+                tasks.map((t) => (
+                  <div key={t.id} className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+                    <div className="min-w-0 flex-1"><p className="truncate font-bold">{t.title}</p><p className="text-xs text-muted-foreground">{etb(t.reward)} · {t.status}</p></div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {t.status === "Under Review" && <button onClick={() => approve(t.id)} className="rounded-lg bg-success px-3 py-1.5 text-xs font-bold text-success-foreground">Approve</button>}
+                      <button onClick={() => { actions.removeTask(t.id); toast("Task removed"); }} aria-label={`Remove ${t.title}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {tab === "news" && (
+            <>
+              <div className={card}>
+                <p className="font-bold">Publish news</p>
+                <p className="mt-1 text-xs text-muted-foreground">New posts appear on the user News page right away.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <input value={newsDraft.title} onChange={(e) => setNewsDraft({ ...newsDraft, title: e.target.value })} placeholder="Title" className="w-full rounded-xl border bg-surface px-4 py-2.5" />
+                  <input value={newsDraft.tag} onChange={(e) => setNewsDraft({ ...newsDraft, tag: e.target.value })} placeholder="Tag (e.g. Announcement)" className="w-full rounded-xl border bg-surface px-4 py-2.5" />
+                </div>
+                <textarea value={newsDraft.body} onChange={(e) => setNewsDraft({ ...newsDraft, body: e.target.value })} placeholder="Article body" rows={3} className="mt-2 w-full rounded-xl border bg-surface px-4 py-2.5" />
+                <button
+                  onClick={() => { if (!actions.addNews(newsDraft)) { toast.error("Enter a title and body"); return; } setNewsDraft({ title: "", tag: "", body: "" }); toast.success("News published"); }}
+                  className="press mt-3 flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground"><Plus className="h-4 w-4" />Publish</button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {news.map((n) => (
+                  <div key={n.id} className={`${card} flex items-start gap-3`}>
+                    <img src={n.image} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
+                    <div className="min-w-0 flex-1"><p className="truncate font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.tag} · {fmtDate(n.date)}</p></div>
+                    <button onClick={() => { actions.removeNews(n.id); toast("News removed"); }} aria-label={`Remove ${n.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {tab === "transactions" && (
+            <div className={card}>
+              <p className="font-bold">Transaction ledger</p>
+              <p className="mt-1 text-xs text-muted-foreground">Static sample entries from the mock data store.</p>
+              <div className="mt-3 divide-y">
+                {transactions.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="min-w-0 truncate">{t.type} · {fmtDate(t.date)} <span className="text-xs text-muted-foreground">· {t.status}</span></span>
+                    <span className={`shrink-0 font-bold ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{etb(t.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
