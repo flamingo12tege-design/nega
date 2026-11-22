@@ -247,4 +247,5 @@ export const actions = {
   /** Saved once in Profile; every withdrawal reuses it. */
   setPayoutAccount: (account: string) => set((s) => ({ ...s, payoutAccount: account })),
   setLoggedIn: (v: boolean) => set((s) => ({ ...s, loggedIn: v })),
+  setPackages: (packages: Appliance[]) => set((s) => ({ ...s, packages, lockedIds: packages.filter((p) => p.tier >= 5).map((p) => p.id) })),
 };

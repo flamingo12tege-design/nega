@@ -6,6 +6,7 @@ import { normalizeEthiopianPhone } from "@/lib/phone";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { AuthLayout, Field, PasswordField, newCode } from "@/components/cas/AuthUi";
+import { supabase, phoneToEmail } from "@/lib/supabase";
 
 // Sample invitation codes until the backend is connected (code -> inviter member ID).
 const INVITES: Record<string, string> = { CAS482: "CAS-100482", CAS513: "CAS-100513" };
@@ -54,7 +55,7 @@ function Page() {
   }
 
   const up = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next = {
       phone: normalizeEthiopianPhone(f.phone) ? undefined : "Enter a valid Ethiopian number",
@@ -64,7 +65,38 @@ function Page() {
     };
     setErr(next);
     if (Object.values(next).some(Boolean)) { if (next.cap !== undefined) { setCap(newCode()); setF({ ...f, cap: "" }); } return; }
-    setMemberId(`CAS-${Math.floor(100000 + Math.random() * 900000)}`);
+    const phone = normalizeEthiopianPhone(f.phone);
+    if (!phone) return;
+
+    const generatedMemberId = `CAS-${Math.floor(100000 + Math.random() * 900000)}`;
+    const { data, error } = await supabase.auth.signUp({
+      email: phoneToEmail(phone),
+      password: f.pw,
+      options: { data: { phone, member_id: generatedMemberId } },
+    });
+
+    if (error) {
+      setErr({ phone: error.message });
+      return;
+    }
+
+    if (data.user) {
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: data.user.id,
+        member_id: generatedMemberId,
+        phone,
+        role: "user",
+        wallet_balance: rewardRules.registrationBonus,
+        referral_code: code ?? null,
+      });
+
+      if (profileError) {
+        setErr({ phone: profileError.message });
+        return;
+      }
+    }
+
+    setMemberId(generatedMemberId);
   };
 
   return (

@@ -14,6 +14,9 @@ import { SearchX, House, LayoutGrid } from "lucide-react";
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/cas/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { supabase } from "@/lib/supabase";
+import { actions } from "@/lib/store";
+import { defaultPackageImage } from "@/lib/mock-data";
 
 function NotFoundComponent() {
   return (
@@ -139,6 +142,37 @@ function RootComponent() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
+
+    const loadSupabase = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      actions.setLoggedIn(Boolean(sessionData.session));
+
+      const { data, error } = await supabase
+        .from("packages")
+        .select("id,tier,name,price,daily_payout,image_url,short_description,details,locked")
+        .order("tier", { ascending: true });
+
+      if (!error && data) {
+        actions.setPackages(data.map((row) => ({
+          id: row.id,
+          tier: row.tier,
+          name: row.name,
+          price: Number(row.price),
+          dailyPayout: Number(row.daily_payout),
+          image: row.image_url || defaultPackageImage,
+          short: row.short_description || "CAS appliance package.",
+          details: Array.isArray(row.details) ? row.details : ["CAS appliance package"],
+        })));
+      }
+    };
+
+    void loadSupabase();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      actions.setLoggedIn(Boolean(session));
+    });
+
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
   return (

@@ -1,10 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Lock } from "lucide-react";
 import { etb } from "@/lib/format";
 import { actions, getPackage, useStore } from "@/lib/store";
 import { SuccessModal } from "@/components/cas/SuccessModal";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/appliances/$id")({
   loader: ({ params }) => {
@@ -28,16 +29,35 @@ const paymentMethod = "CBE Birr";
 function Page() {
   const a = Route.useLoaderData();
   const [successOpen, setSuccessOpen] = useState(false);
-  const allPurchases = useStore((s) => s.purchases);
+  const [purchasing, setPurchasing] = useState(false);
   const locked = useStore((s) => s.lockedIds.includes(a.id));
-  const purchases = allPurchases.filter((p) => p.applianceId === a.id);
-  const purchaseLimitReached = purchases.length >= 2;
 
-  const purchase = () => {
-    if (!actions.addPurchase(a.id, paymentMethod)) {
-      toast.error("You can only purchase this package twice.");
+  const purchase = async () => {
+    if (purchasing) return;
+    setPurchasing(true);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) {
+      toast.error("Please log in first");
+      setPurchasing(false);
       return;
     }
+
+    const { error } = await supabase.from("purchases").insert({
+      user_id: userId,
+      package_id: a.id,
+      amount: a.price,
+      payment_method: paymentMethod,
+      status: "pending",
+    });
+
+    setPurchasing(false);
+    if (error) {
+      toast.error("Purchase failed", { description: error.message });
+      return;
+    }
+
     setSuccessOpen(true);
   };
 
@@ -64,18 +84,15 @@ function Page() {
         {locked ? (
           <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted p-4"><Lock className="h-5 w-5 shrink-0 text-primary" /><div><p className="font-bold">This package is locked</p><p className="text-sm text-muted-foreground">It will open soon. Stay tuned for updates.</p></div></div>
         ) : (
-          <>
-            <button disabled={purchaseLimitReached} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchaseLimitReached ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchaseLimitReached ? "Purchase limit reached" : "Buy Now"}</button>
-            {purchaseLimitReached && <p className="mt-2 text-center text-xs text-muted-foreground">This package has reached its limit of 2 purchases.</p>}
-          </>
+          <button disabled={purchasing} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
         )}
       </div>
       <SuccessModal
         open={successOpen}
         onOpenChange={setSuccessOpen}
-        title="Purchase successful"
-        description="Your package has been added to My Purchases."
-        badge="Completed"
+        title="Purchase submitted"
+        description="Your purchase has been saved and is waiting for review."
+        badge="Pending review"
         rows={[
           { label: "Package", value: a.name },
           { label: "Amount", value: etb(a.price) },
