@@ -4,6 +4,8 @@ import { etb, fmtDate } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { PageHeader, Section } from "@/components/cas/AppShell";
 import { StatusPill } from "@/components/cas/StatusPill";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/wallet")({
   head: () => ({ meta: [{ title: "My Wallet — CAS" }, { name: "description", content: "Your CAS balances, bonuses, purchases and transactions." }, { property: "og:title", content: "My Wallet — CAS" }, { property: "og:description", content: "Your CAS balances, bonuses, purchases and transactions." }] }),
@@ -11,7 +13,6 @@ export const Route = createFileRoute("/wallet")({
 });
 
 function Page() {
-  const purchases = useStore((s) => s.purchases);
   const wallet = useSupabaseWallet();
   const balance = wallet.balance;
   const history = wallet.ledger.map((row) => ({
@@ -21,7 +22,22 @@ function Page() {
     date: row.created_at,
     status: row.status,
   }));
-  const packages = useStore((s) => s.packages);
+  const [livePurchases, setLivePurchases] = useState<Array<{ id: string; package_id: string; amount: number; payment_method: string; status: string; created_at: string }>>([]);
+
+  useEffect(() => {
+    const loadPurchases = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) return;
+      const { data } = await supabase
+        .from("purchases")
+        .select("id,package_id,amount,payment_method,status,created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      setLivePurchases((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
+    };
+    void loadPurchases();
+  }, []);
   return (
     <div>
       <PageHeader title="My Wallet" back />
@@ -37,16 +53,19 @@ function Page() {
       </div>
       <Section title="My Purchases">
         <div className="divide-y overflow-hidden rounded-2xl bg-card shadow-card">
-          {purchases.flatMap((p) => {
-            const a = packages.find((x) => x.id === p.applianceId);
-            return a ? [{ purchase: p, appliance: a }] : [];
-          }).map(({ purchase, appliance }) => (
-            <div key={purchase.id} className="flex items-center gap-3 p-3">
-              <img src={appliance.image} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{appliance.name}</p><p className="text-xs text-muted-foreground">{etb(appliance.price)} · {purchase.method}</p></div>
-              <StatusPill s={purchase.status} />
-            </div>
-          ))}
+          {livePurchases.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">No packages purchased yet.</p>
+          ) : livePurchases.map((purchase) => {
+            return (
+              <div key={purchase.id} className="flex items-center gap-3 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{purchase.package_id}</p>
+                  <p className="text-xs text-muted-foreground">{etb(purchase.amount)} · {purchase.payment_method}</p>
+                </div>
+                <StatusPill s={purchase.status === "approved" ? "Approved" : purchase.status === "rejected" ? "Rejected" : "Pending"} />
+              </div>
+            );
+          })}
         </div>
       </Section>
       <Section title="Transaction History">

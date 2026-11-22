@@ -37,24 +37,19 @@ function Page() {
     setPurchasing(true);
 
     const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId) {
+    if (!sessionData.session) {
       toast.error("Please log in first");
       setPurchasing(false);
       return;
     }
 
-    const { error } = await supabase.from("purchases").insert({
-      user_id: userId,
-      package_id: a.id,
-      amount: a.price,
-      payment_method: paymentMethod,
-      status: "pending",
-    });
-
+    const { error } = await supabase.rpc("purchase_package", { p_package_id: a.id });
     setPurchasing(false);
+
     if (error) {
-      toast.error("Purchase failed", { description: error.message });
+      toast.error(error.message === "Insufficient balance" ? "Insufficient balance" : "Purchase failed", {
+        description: error.message === "Insufficient balance" ? `You need ${etb(a.price)} to buy this package.` : error.message,
+      });
       return;
     }
 
@@ -90,9 +85,9 @@ function Page() {
       <SuccessModal
         open={successOpen}
         onOpenChange={setSuccessOpen}
-        title="Purchase submitted"
-        description="Your purchase has been saved and is waiting for review."
-        badge="Pending review"
+        title="Purchase successful"
+        description="The package was paid for with your wallet balance."
+        badge="Completed"
         rows={[
           { label: "Package", value: a.name },
           { label: "Amount", value: etb(a.price) },

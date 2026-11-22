@@ -6,6 +6,7 @@ import cbeLogo from "@/assets/cbe-logo.svg";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { minimumRechargeAmount, useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 
 const methods = ["CBE Birr"];
 
@@ -21,15 +22,31 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   const quickAmounts = kind === "Withdraw"
     ? [300, 500, 1000, 5000]
     : Array.from(new Set([minPackageAmount, 500, 1000, 5000].filter((v) => v >= minPackageAmount))).sort((a, b) => a - b);
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!n || n < minimumAmount) { toast.error(`Minimum ${amountLabel} amount is ${etb(minimumAmount)}`); return; }
     if (max !== undefined && n > max) { toast.error("Amount exceeds your available balance"); return; }
+
     if (kind === "Withdraw") {
       if (!payoutAccount) { toast.error("Save your CBE account before withdrawing"); return; }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) { toast.error("Please log in first"); return; }
+
+      const { error } = await supabase.from("wallet_ledger").insert({
+        user_id: userId,
+        amount: -n,
+        type: "withdrawal",
+        status: "pending",
+        description: `CBE withdrawal to ${payoutAccount}`,
+      });
+
+      if (error) { toast.error("Withdrawal request failed", { description: error.message }); return; }
       navigate({ to: "/withdraw/success", search: { amount: n, account: payoutAccount, method } });
       return;
     }
+
     navigate({ to: "/recharge/payment", search: { amount: n, method } });
   };
   return (

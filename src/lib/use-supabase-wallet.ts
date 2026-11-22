@@ -84,13 +84,14 @@ export function useSupabaseWallet() {
 
       const week = startOfWeek();
       const month = startOfMonth();
-      const incomeTypes = new Set(["daily_income", "team_commission", "referral_bonus", "recruitment_bonus", "commission", "deposit"]);
+      const incomeTypes = new Set(["daily_income", "team_commission", "referral_bonus", "recruitment_bonus", "commission", "deposit", "recharge"]);
 
-      const incomeRows = rows.filter((row) => incomeTypes.has(row.type));
-      const positiveRows = rows.filter((row) => row.amount > 0);
-      const teamRows = rows.filter((row) => ["team_commission", "referral_bonus", "recruitment_bonus", "commission"].includes(row.type));
-      const payRows = rows.filter((row) => ["daily_income", "pay_income"].includes(row.type));
-      const withdrawalRows = rows.filter((row) => row.type === "withdrawal" || row.amount < 0);
+      const completedRows = rows.filter((row) => row.status === "completed");
+      const incomeRows = completedRows.filter((row) => incomeTypes.has(row.type));
+      const positiveRows = completedRows.filter((row) => row.amount > 0);
+      const teamRows = completedRows.filter((row) => ["team_commission", "referral_bonus", "recruitment_bonus", "commission"].includes(row.type));
+      const payRows = completedRows.filter((row) => ["daily_income", "pay_income"].includes(row.type));
+      const withdrawalRows = completedRows.filter((row) => row.type === "withdrawal" || row.amount < 0);
 
       const sum = (items: WalletLedgerRow[]) => items.reduce((total, row) => total + Math.abs(row.amount), 0);
       const sumInPeriod = (items: WalletLedgerRow[], start: Date) =>

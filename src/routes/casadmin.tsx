@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3,
@@ -12,6 +12,7 @@ import { etb, fmtDate } from "@/lib/format";
 import { actions, useReferral, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { StatusPill } from "@/components/cas/StatusPill";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/casadmin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — CAS" }, { name: "description", content: "Manage CAS users, appliances, bonuses, tasks and news." }, { property: "og:title", content: "Admin Dashboard — CAS" }, { property: "og:description", content: "Manage CAS users, appliances, bonuses, tasks and news." }] }),
@@ -113,6 +114,56 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [adjustment, setAdjustment] = useState("");
+  const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
+
+  const loadPendingRecharges = async () => {
+    const { data, error } = await supabase
+      .from("wallet_ledger")
+      .select("id,user_id,amount,transaction_ref,proof_url,created_at")
+      .eq("type", "recharge")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (!error) setPendingRecharges((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
+  };
+
+  const loadPendingWithdrawals = async () => {
+    const { data, error } = await supabase
+      .from("wallet_ledger")
+      .select("id,user_id,amount,description,created_at")
+      .eq("type", "withdrawal")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (!error) setPendingWithdrawals((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
+  };
+
+  const approveRecharge = async (id: string) => {
+    const { error } = await supabase.rpc("approve_recharge", { p_ledger_id: id });
+    if (error) { toast.error("Could not approve deposit", { description: error.message }); return; }
+    toast.success("Deposit approved and balance credited");
+    await loadPendingRecharges();
+  };
+
+  const rejectRecharge = async (id: string) => {
+    const { error } = await supabase.rpc("reject_recharge", { p_ledger_id: id });
+    if (error) { toast.error("Could not reject deposit", { description: error.message }); return; }
+    toast("Deposit rejected");
+    await loadPendingRecharges();
+  };
+
+  const approveWithdrawal = async (id: string) => {
+    const { error } = await supabase.rpc("approve_withdrawal", { p_ledger_id: id });
+    if (error) { toast.error("Could not approve withdrawal", { description: error.message }); return; }
+    toast.success("Withdrawal approved and balance updated");
+    await loadPendingWithdrawals();
+  };
+
+  const rejectWithdrawal = async (id: string) => {
+    const { error } = await supabase.rpc("reject_withdrawal", { p_ledger_id: id });
+    if (error) { toast.error("Could not reject withdrawal", { description: error.message }); return; }
+    toast("Withdrawal rejected");
+    await loadPendingWithdrawals();
+  };
 
   const pendingPurchases = purchases.filter((p) => p.status === "Pending");
   const pendingMembers = team.filter((m) => m.status === "Pending");
@@ -136,6 +187,26 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
   const previewTotal = preview.reduce((sum, row) => sum + row.amount, 0);
   const filteredUsers = adminUsers.filter((u) => `${u.id} ${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase().trim()));
   const selectedUser = adminUsers.find((u) => u.id === selectedUserId) ?? null;
+
+  useEffect(() => {
+    const channel = supabase.channel("admin_recharge_updates");
+
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "recharges" }, (payload) => {
+      console.log("Change received!", payload);
+      // Handle the change payload, e.g., by refetching data or updating state
+    });
+
+    channel.subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    void loadPendingRecharges();
+    void loadPendingWithdrawals();
+  }, []);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -511,18 +582,68 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
           )}
 
           {tab === "transactions" && (
-            <div className={card}>
-              <p className="font-bold">Transaction ledger</p>
-              <p className="mt-1 text-xs text-muted-foreground">Static sample entries from the mock data store.</p>
-              <div className="mt-3 divide-y">
-                {transactions.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <span className="min-w-0 truncate">{t.type} · {fmtDate(t.date)} <span className="text-xs text-muted-foreground">· {t.status}</span></span>
-                    <span className={`shrink-0 font-bold ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{etb(t.amount)}</span>
+            <>
+              <div className={card}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Pending deposits</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Approve deposits only after verifying payment proof.</p>
                   </div>
-                ))}
+                  <button type="button" onClick={() => void loadPendingRecharges()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                </div>
+                <div className="mt-3 divide-y">
+                  {pendingRecharges.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">No deposits awaiting approval.</p>
+                  ) : pendingRecharges.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold">{etb(row.amount)}</p>
+                        <p className="truncate text-xs text-muted-foreground">{row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
+                        {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer"); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => void approveRecharge(row.id)} className="rounded-lg bg-success px-3 py-2 text-xs font-bold text-success-foreground">Approve</button>
+                        <button type="button" onClick={() => void rejectRecharge(row.id)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-destructive">Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              <div className={card}>
+                <p className="font-bold">Pending withdrawals</p>
+                <p className="mt-1 text-xs text-muted-foreground">Approve withdrawals only after verifying bank details.</p>
+                <div className="mt-3 divide-y">
+                  {pendingWithdrawals.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">No withdrawals awaiting approval.</p>
+                  ) : pendingWithdrawals.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold">{etb(Math.abs(row.amount))}</p>
+                        <p className="truncate text-xs text-muted-foreground">{row.description || "Withdrawal request"} · {fmtDate(row.created_at)}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => void approveWithdrawal(row.id)} className="rounded-lg bg-success px-3 py-2 text-xs font-bold text-success-foreground">Approve</button>
+                        <button type="button" onClick={() => void rejectWithdrawal(row.id)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-destructive">Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={card}>
+                <p className="font-bold">Transaction ledger</p>
+                <p className="mt-1 text-xs text-muted-foreground">Recent system transaction data.</p>
+                <div className="mt-3 divide-y">
+                  {transactions.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                      <span className="min-w-0 truncate">{t.type} · {fmtDate(t.date)} <span className="text-xs text-muted-foreground">· {t.status}</span></span>
+                      <span className={`shrink-0 font-bold ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{etb(t.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </main>
       </div>

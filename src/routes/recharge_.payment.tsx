@@ -5,6 +5,7 @@ import { Check, Copy, Hash, ImageUp } from "lucide-react";
 import { depositAccount } from "@/lib/mock-data";
 import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/recharge_/payment")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -21,6 +22,7 @@ function Page() {
   const [proof, setProof] = useState("");
   const [fileName, setFileName] = useState("");
   const [txn, setTxn] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
 
   const copy = async () => {
     await navigator.clipboard.writeText(depositAccount.account);
@@ -32,11 +34,39 @@ function Page() {
     if (!file) return;
     setProof(URL.createObjectURL(file));
     setFileName(file.name);
+    setProofFile(file);
   };
 
-  const submit = () => {
-    if (!proof && !txn.trim()) { toast.error("Add a screenshot or transaction number"); return; }
-    navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proof), txn: txn.trim() } });
+  const submit = async () => {
+    if (!proofFile && !txn.trim()) { toast.error("Add a screenshot or transaction number"); return; }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) { toast.error("Please log in first"); return; }
+
+    let proofUrl: string | null = null;
+    if (proofFile) {
+      const safeName = proofFile.name.replace(/[^a-zA-Z0-9_.-]/g, "-");
+      const path = `${userId}/${crypto.randomUUID()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("recharge-proofs")
+        .upload(path, proofFile, { upsert: false, contentType: proofFile.type });
+      if (uploadError) { toast.error("Screenshot upload failed", { description: uploadError.message }); return; }
+      proofUrl = path;
+    }
+
+    const { error } = await supabase.from("wallet_ledger").insert({
+      user_id: userId,
+      amount,
+      type: "recharge",
+      status: "pending",
+      transaction_ref: txn.trim() || null,
+      proof_url: proofUrl,
+      description: `CBE recharge via ${method}`,
+    });
+
+    if (error) { toast.error("Recharge submission failed", { description: error.message }); return; }
+    navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: txn.trim() } });
   };
 
   return (

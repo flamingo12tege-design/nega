@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { PageHeader } from "@/components/cas/AppShell";
 import { MoneyForm } from "@/components/cas/MoneyForm";
+import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 
 export const Route = createFileRoute("/withdraw")({
   head: () => ({ meta: [{ title: "Withdraw — CAS" }, { name: "description", content: "Withdraw funds from your CAS wallet." }, { property: "og:title", content: "Withdraw — CAS" }, { property: "og:description", content: "Withdraw funds from your CAS wallet." }] }),
@@ -9,12 +10,12 @@ export const Route = createFileRoute("/withdraw")({
 });
 
 function Page() {
-  const balance = useStore((s) => s.walletBalance);
+  const wallet = useSupabaseWallet();
   const payoutAccount = useStore((s) => s.payoutAccount);
   return (
     <div>
       <PageHeader title="Withdraw" subtitle="Transfer your available balance" back />
-      <MoneyForm kind="Withdraw" max={balance} payoutAccount={payoutAccount} />
+      <MoneyForm kind="Withdraw" max={wallet.balance} payoutAccount={payoutAccount} />
     </div>
   );
 }
