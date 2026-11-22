@@ -140,7 +140,7 @@ function RootComponent() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => undefined);
     }
 
     const loadSupabase = async () => {
