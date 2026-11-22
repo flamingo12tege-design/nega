@@ -13,7 +13,7 @@ import { actions, useReferral, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { StatusPill } from "@/components/cas/StatusPill";
 
-export const Route = createFileRoute("/admin")({
+export const Route = createFileRoute("/casadmin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — CAS" }, { name: "description", content: "Manage CAS users, appliances, bonuses, tasks and news." }, { property: "og:title", content: "Admin Dashboard — CAS" }, { property: "og:description", content: "Manage CAS users, appliances, bonuses, tasks and news." }] }),
   component: AdminRoute,
 });

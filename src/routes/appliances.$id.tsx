@@ -1,20 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
-import cbeLogo from "@/assets/cbe-logo.svg";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Check, Lock } from "lucide-react";
 import { StatusPill } from "@/components/cas/StatusPill";
-import { SuccessModal } from "@/components/cas/SuccessModal";
-import { Lock } from "lucide-react";
 import { etb } from "@/lib/format";
 import { actions, getPackage, useStore } from "@/lib/store";
+import { SuccessModal } from "@/components/cas/SuccessModal";
 
 export const Route = createFileRoute("/appliances/$id")({
   loader: ({ params }) => {
@@ -37,19 +28,17 @@ const paymentMethod = "CBE Birr";
 
 function Page() {
   const a = Route.useLoaderData();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const allPurchases = useStore((s) => s.purchases);
   const locked = useStore((s) => s.lockedIds.includes(a.id));
   const purchases = allPurchases.filter((p) => p.applianceId === a.id);
   const purchaseLimitReached = purchases.length >= 2;
 
-  const submit = () => {
+  const purchase = () => {
     if (!actions.addPurchase(a.id, paymentMethod)) {
-      toast.error("You can only request this package twice.");
+      toast.error("You can only purchase this package twice.");
       return;
     }
-    setConfirmOpen(false);
     setSuccessOpen(true);
   };
 
@@ -77,57 +66,14 @@ function Page() {
           <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted p-4"><Lock className="h-5 w-5 shrink-0 text-primary" /><div><p className="font-bold">This package is locked</p><p className="text-sm text-muted-foreground">It will open soon. Stay tuned for updates.</p></div></div>
         ) : (
           <>
-            <button disabled={purchaseLimitReached} onClick={() => setConfirmOpen(true)} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchaseLimitReached ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchaseLimitReached ? "Purchase limit reached" : "Buy Now"}</button>
-            {purchaseLimitReached && <p className="mt-2 text-center text-xs text-muted-foreground">This package has reached its limit of 2 requests.</p>}
+            <button disabled={purchaseLimitReached} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchaseLimitReached ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchaseLimitReached ? "Purchase limit reached" : "Buy Now"}</button>
+            {purchaseLimitReached && <p className="mt-2 text-center text-xs text-muted-foreground">This package has reached its limit of 2 purchases.</p>}
           </>
         )}
 
-        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-3xl p-5">
-            <DialogHeader>
-              <DialogTitle>Confirm purchase</DialogTitle>
-              <DialogDescription>Review your package and payment method.</DialogDescription>
-            </DialogHeader>
-            <div className="rounded-xl border border-accent bg-accent/10 px-3 py-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <img src={cbeLogo} alt="" className="h-6 w-6 object-contain" />
-                {paymentMethod}
-                <Check className="ml-auto h-4 w-4" />
-              </div>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Total</span>
-              <span className="font-extrabold">{etb(a.price)}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setConfirmOpen(false)} className="press rounded-xl bg-secondary py-3 font-bold">Cancel</button>
-              <button onClick={submit} className="press rounded-xl bg-primary py-3 font-bold text-primary-foreground">Submit request</button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <SuccessModal
-          open={successOpen}
-          onOpenChange={setSuccessOpen}
-          title="Purchase request submitted"
-          description="We'll notify you once it's processed."
-          badge="Pending review"
-          rows={[
-            { label: "Package", value: a.name },
-            { label: "Amount", value: etb(a.price) },
-            { label: "Payment method", value: paymentMethod },
-          ]}
-          footer={
-            <>
-              <button onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-secondary py-3 font-bold">Done</button>
-              <Link to="/wallet" onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-accent py-3 text-center font-bold text-accent-foreground">My purchases</Link>
-            </>
-          }
-        />
-
         {purchases.length > 0 && (
           <div className="mt-6">
-            <p className="text-sm font-bold">Your requests</p>
+            <p className="text-sm font-bold">Your purchases</p>
             {purchases.map((p) => (
               <div key={p.id} className="mt-2 flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm">
                 <span>{p.method}</span><StatusPill s={p.status} />
@@ -136,6 +82,24 @@ function Page() {
           </div>
         )}
       </div>
+      <SuccessModal
+        open={successOpen}
+        onOpenChange={setSuccessOpen}
+        title="Purchase successful"
+        description="Your package has been added to My Purchases."
+        badge="Completed"
+        rows={[
+          { label: "Package", value: a.name },
+          { label: "Amount", value: etb(a.price) },
+          { label: "Payment method", value: paymentMethod },
+        ]}
+        footer={
+          <>
+            <button onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-secondary py-3 font-bold">Done</button>
+            <Link to="/wallet" onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-accent py-3 text-center font-bold text-accent-foreground">My purchases</Link>
+          </>
+        }
+      />
     </div>
   );
 }

@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as AdminRouteImport } from './routes/admin'
+import { Route as CasadminRouteImport } from './routes/casadmin'
 import { Route as GiftsRouteImport } from './routes/gifts'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as LoginRouteImport } from './routes/login'
@@ -42,9 +42,9 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const CasadminRoute = CasadminRouteImport.update({
+  id: '/casadmin',
+  path: '/casadmin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GiftsRoute = GiftsRouteImport.update({
@@ -146,7 +146,7 @@ const WithdrawSuccessRoute = WithdrawSuccessRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/admin': typeof AdminRoute
+  '/casadmin': typeof CasadminRoute
   '/gifts': typeof GiftsRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
@@ -170,7 +170,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/admin': typeof AdminRoute
+  '/casadmin': typeof CasadminRoute
   '/gifts': typeof GiftsRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
@@ -195,7 +195,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/admin': typeof AdminRoute
+  '/casadmin': typeof CasadminRoute
   '/gifts': typeof GiftsRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
@@ -221,7 +221,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
-    | '/admin'
+    | '/casadmin'
     | '/gifts'
     | '/how-it-works'
     | '/login'
@@ -245,7 +245,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
-    | '/admin'
+    | '/casadmin'
     | '/gifts'
     | '/how-it-works'
     | '/login'
@@ -269,7 +269,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
-    | '/admin'
+    | '/casadmin'
     | '/gifts'
     | '/how-it-works'
     | '/login'
@@ -294,7 +294,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  AdminRoute: typeof AdminRoute
+  CasadminRoute: typeof CasadminRoute
   GiftsRoute: typeof GiftsRoute
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
@@ -332,11 +332,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
+    '/casadmin': {
+      id: '/casadmin'
+      path: '/casadmin'
+      fullPath: '/casadmin'
+      preLoaderRoute: typeof CasadminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gifts': {
@@ -478,7 +478,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  AdminRoute: AdminRoute,
+  CasadminRoute: CasadminRoute,
   GiftsRoute: GiftsRoute,
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,

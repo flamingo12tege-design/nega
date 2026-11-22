@@ -125,7 +125,7 @@ export const useReferral = () => {
 export const actions = {
   addPurchase: (applianceId: string, method: string) => {
     if (state.purchases.filter((purchase) => purchase.applianceId === applianceId).length >= 2) return false;
-    set((s) => ({ ...s, purchases: [{ id: crypto.randomUUID(), applianceId, method, status: "Pending", date: new Date().toISOString() }, ...s.purchases] }));
+    set((s) => ({ ...s, purchases: [{ id: crypto.randomUUID(), applianceId, method, status: "Approved", date: new Date().toISOString() }, ...s.purchases] }));
     return true;
   },
   setTask: (id: string, status: TaskStatus) =>
