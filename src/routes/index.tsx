@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Tag, CircleHelp, ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
+import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -68,8 +68,6 @@ function Home() {
     { to: "/gifts", label: "Gifts", icon: Gift },
     { to: "/about", label: "About", icon: Info },
     { to: "/team", label: "Invite", icon: UserPlus },
-    { to: "/offers", label: "Offers", icon: Tag },
-    { to: "/how-it-works", label: "How it works", icon: CircleHelp },
   ] as const;
 
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);

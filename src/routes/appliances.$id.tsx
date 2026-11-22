@@ -68,7 +68,7 @@ function Page() {
         <Link to="/appliances" className="absolute left-4 top-4 rounded-full bg-background/90 px-3 py-1.5 text-sm font-semibold shadow-card">← Back</Link>
       </div>
       <div className="-mt-6 rounded-t-3xl bg-background p-5 lg:mt-0 lg:rounded-3xl lg:shadow-card">
-        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">Tier {a.tier}</span>
+        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">VIP {a.tier}</span>
         <h1 className="mt-3 text-2xl font-extrabold">{a.name}</h1>
         <p className="mt-1 text-muted-foreground">{a.short}</p>
         <p className="mt-4 text-3xl font-extrabold text-primary">{etb(a.price)}</p>

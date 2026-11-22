@@ -130,7 +130,7 @@ function Page() {
                     <img src={appliance.image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-bold">{appliance.name}</p>
-                      <p className="text-xs text-muted-foreground">Tier {appliance.tier} · activated {fmtDate(purchase.date)}</p>
+                      <p className="text-xs text-muted-foreground">VIP {appliance.tier} · activated {fmtDate(purchase.date)}</p>
                     </div>
                     <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-primary">Active</span>
                   </div>

@@ -8,7 +8,7 @@ export const Route = createFileRoute("/how-it-works")({
 });
 
 const steps = [
-  { icon: ShoppingBag, t: "Choose a package", d: "Pick from eight appliance tiers." },
+  { icon: ShoppingBag, t: "Choose a package", d: "Pick from eight VIP levels." },
   { icon: CheckCircle2, t: "Confirm your request", d: "We review and process each purchase." },
   { icon: Share2, t: "Invite & earn", d: "Share your link and earn eligible rewards." },
 ];

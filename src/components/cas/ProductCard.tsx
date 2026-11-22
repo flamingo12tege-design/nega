@@ -11,7 +11,7 @@ export function ProductCard({ a }: { a: Appliance }) {
       <div className="relative aspect-square overflow-hidden bg-muted">
         <img src={a.image} alt={a.name} loading="lazy" decoding="async" width={816} height={816} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         {locked && <div className="absolute inset-0 grid place-items-center bg-primary/55 backdrop-blur-[2px]"><span className="grid h-12 w-12 place-items-center rounded-full bg-background text-primary"><Lock className="h-5 w-5" /></span></div>}
-        <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">Tier {a.tier}</span>
+        <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">VIP {a.tier}</span>
       </div>
       <div className="flex flex-1 flex-col p-3">
         <h3 className="line-clamp-1 text-sm font-bold">{a.name}</h3>

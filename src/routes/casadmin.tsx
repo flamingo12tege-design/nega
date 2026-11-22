@@ -261,7 +261,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                 {[
                   { l: "Members", v: adminUsers.length.toLocaleString(), s: "Registered accounts" },
                   { l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
-                  { l: "Your VIP", v: String(vip), s: "Highest approved tier" },
+                  { l: "Your VIP", v: String(vip), s: "Highest approved VIP" },
                   { l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
                 ].map(({ l, v, s }) => (
                   <div key={l} className={card}><p className="text-xs text-muted-foreground">{l}</p><p className="mt-1 text-xl font-extrabold">{v}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{s}</p></div>
@@ -424,7 +424,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {([
                     ["name", "Package name", "text"],
-                    ["tier", "Tier", "number"],
+                    ["tier", "VIP", "number"],
                     ["price", "Price (ETB)", "number"],
                     ["dailyPayout", "Daily payout (ETB)", "number"],
                   ] as const).map(([k, label, type]) => (
@@ -453,7 +453,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                         <p className="text-sm font-semibold text-primary">{etb(a.price)}</p>
                         <p className="text-xs text-muted-foreground">{etb(a.dailyPayout)}/day · {etb(a.dailyPayout * 90)} in 90 days</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-primary">Tier {a.tier}</span>
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-primary">VIP {a.tier}</span>
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${locked ? "bg-warning/20 text-primary" : "bg-success/15 text-success"}`}>{locked ? "Locked" : "Open"}</span>
                         </div>
                       </div>
