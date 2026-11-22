@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { transactions, user } from "@/lib/mock-data";
-import { totalClaimed } from "@/lib/daily-income";
+import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 import { etb, fmtDate } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { PageHeader, Section } from "@/components/cas/AppShell";
@@ -13,18 +12,16 @@ export const Route = createFileRoute("/wallet")({
 
 function Page() {
   const purchases = useStore((s) => s.purchases);
-  const balance = useStore((s) => s.walletBalance);
-  const claims = useStore((s) => s.claims);
-  const commissionClaims = useStore((s) => s.commissionClaims);
-  const recruitmentCredits = useStore((s) => s.recruitmentCredits);
+  const wallet = useSupabaseWallet();
+  const balance = wallet.balance;
+  const history = wallet.ledger.map((row) => ({
+    id: row.id,
+    type: row.type === "daily_income" ? "Daily income" : row.type === "team_commission" ? "Team commission" : row.type === "referral_bonus" || row.type === "recruitment_bonus" ? "Referral bonus" : row.type === "withdrawal" ? "Withdrawal" : "Wallet transaction",
+    amount: row.amount,
+    date: row.created_at,
+    status: row.status,
+  }));
   const packages = useStore((s) => s.packages);
-  const w = user.wallet;
-  const history = [
-    ...claims.map((c) => ({ id: c.id, type: "Daily income" as const, amount: c.amount, date: c.date, status: "Completed" as const })),
-    ...commissionClaims.map((c) => ({ id: c.id, type: "Team commission" as const, amount: c.amount, date: c.date, status: "Completed" as const })),
-    ...recruitmentCredits.map((c) => ({ id: c.id, type: "Recruitment bonus" as const, amount: c.amount, date: c.date, status: "Completed" as const })),
-    ...transactions,
-  ].sort((a, b) => b.date.localeCompare(a.date));
   return (
     <div>
       <PageHeader title="My Wallet" back />
@@ -32,9 +29,9 @@ function Page() {
         <p className="text-xs text-muted-foreground">Available balance · withdrawable</p>
         <p className="text-3xl font-extrabold text-primary">{etb(balance)}</p>
         <div className="mt-4 grid grid-cols-3 gap-3 border-t pt-4">
-          <div><p className="text-xs text-muted-foreground">Registration bonus</p><p className="font-bold">{etb(w.registrationBonus)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Referral bonus</p><p className="font-bold">{etb(w.referralBonus)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Daily income claimed</p><p className="font-bold">{etb(totalClaimed(claims))}</p></div>
+          <div><p className="text-xs text-muted-foreground">Available</p><p className="font-bold">{etb(wallet.balance)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Team bonus</p><p className="font-bold">{etb(wallet.teamBonus)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Pay income</p><p className="font-bold">{etb(wallet.payIncome)}</p></div>
         </div>
         <p className="mt-3 rounded-xl bg-muted p-3 text-xs text-muted-foreground">Bonuses are promotional credits and are kept separate from your withdrawable balance. Eligibility rules apply to each bonus type.</p>
       </div>

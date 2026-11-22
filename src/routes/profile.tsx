@@ -2,11 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { UserRound, ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, Sparkles, PiggyBank, Landmark, Check } from "lucide-react";
 import { user } from "@/lib/mock-data";
-import { etb, fmtDate } from "@/lib/format";
+import { fmtDate, etb } from "@/lib/format";
 import { actions, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — CAS" }, { name: "description", content: "Manage your CAS account, wallet and settings." }, { property: "og:title", content: "Profile — CAS" }, { property: "og:description", content: "Manage your CAS account, wallet and settings." }] }),
@@ -44,6 +45,7 @@ function Page() {
     };
     void loadProfile();
   }, []);
+  const wallet = useSupabaseWallet();
   return (
     <div>
       <header className="bg-primary px-5 pb-16 pt-6 text-primary-foreground lg:rounded-b-3xl">
@@ -59,7 +61,7 @@ function Page() {
       <div className="-mt-10 mx-5 rounded-2xl bg-card p-4 shadow-card">
         <p className="text-xs text-muted-foreground">Registered</p><p className="font-bold">{fmtDate(user.joined)}</p>
       </div>
-      <WalletStats />
+      <WalletStats wallet={wallet} />
       <div className="mx-5 mt-5 divide-y overflow-hidden rounded-2xl bg-card shadow-card">
         <Link to="/wallet" className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted">
           <ReceiptText className="h-5 w-5 text-primary" />
@@ -82,18 +84,17 @@ function Page() {
   );
 }
 
-function WalletStats() {
-  const e = user.earnings;
+function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> }) {
   const tiles = [
-    { l: "This week", v: e.thisWeek, i: Clock3, t: "bg-tint-orange" },
-    { l: "This month", v: e.thisMonth, i: ChartColumnIncreasing, t: "bg-tint-green" },
-    { l: "Team bonus", v: e.teamBonus, i: HandCoins, t: "bg-tint-violet" },
-    { l: "Pay income", v: e.payIncome, i: Banknote, t: "bg-tint-rose" },
+    { l: "This week", v: wallet.thisWeek, i: Clock3, t: "bg-tint-orange" },
+    { l: "This month", v: wallet.thisMonth, i: ChartColumnIncreasing, t: "bg-tint-green" },
+    { l: "Team bonus", v: wallet.teamBonus, i: HandCoins, t: "bg-tint-violet" },
+    { l: "Pay income", v: wallet.payIncome, i: Banknote, t: "bg-tint-rose" },
   ];
   const rows = [
-    { l: "This week", v: e.thisWeek, i: Sparkles },
-    { l: "Total revenue", v: e.totalRevenue, i: PiggyBank },
-    { l: "Total withdrawal", v: e.totalWithdrawal, i: Landmark },
+    { l: "This week", v: wallet.thisWeek, i: Sparkles },
+    { l: "Total revenue", v: wallet.totalRevenue, i: PiggyBank },
+    { l: "Total withdrawal", v: wallet.totalWithdrawal, i: Landmark },
   ];
   return (
     <section className="mx-5 mt-5">
