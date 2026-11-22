@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
 import { etb } from "@/lib/format";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/recharge_/success")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -23,32 +24,61 @@ function Row({ l, v }: { l: string; v: string }) {
 }
 
 function Page() {
+  const navigate = useNavigate();
   const { amount, method, proof, txn } = Route.useSearch();
+  const [seconds, setSeconds] = useState(5);
   const proofLabel = [proof ? "Screenshot" : "", txn ? `Txn ${txn}` : ""].filter(Boolean).join(" · ");
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSeconds((value) => {
+        if (value <= 1) {
+          window.clearInterval(timer);
+          void navigate({ to: "/" });
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [navigate]);
+
   return (
-    <div className="px-5 py-8 lg:py-12">
-      <div className="mx-auto w-full max-w-md rounded-3xl bg-card p-6 text-center shadow-card">
-        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-success/15 text-success"><CheckCircle2 className="h-9 w-9" /></span>
-        <h1 className="mt-4 text-xl font-extrabold">Recharge request submitted</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {amount > 0
-            ? `${etb(amount)} via ${method}. We'll credit your wallet once your payment is verified.`
-            : "We'll credit your wallet once your payment is verified."}
-        </p>
-        <span className="mt-3 inline-block rounded-full bg-warning/20 px-3 py-1 text-xs font-bold text-primary">Pending review</span>
+    <div className="fixed inset-0 z-[100] grid min-h-dvh place-items-center overflow-hidden bg-surface px-5 py-8">
+      <div className="pointer-events-none absolute -left-28 -top-24 h-80 w-80 rounded-full bg-success/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-28 -right-20 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+      <div className="rise relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/70 bg-card text-center shadow-lift">
+        <div className="bg-gradient-to-b from-success/15 to-card px-6 pb-5 pt-7">
+          <div className="relative mx-auto w-fit">
+            <span className="grid h-20 w-20 place-items-center rounded-full border-8 border-white bg-success text-white shadow-lg">
+              <CheckCircle2 className="h-10 w-10" />
+            </span>
+            <span className="absolute -right-2 -top-2 grid h-7 w-7 place-items-center rounded-full bg-accent text-[11px] font-extrabold text-accent-foreground">{seconds}</span>
+          </div>
+          <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-primary">Recharge submitted</h1>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
+            Your payment proof is under review. Your wallet balance will update after verification.
+          </p>
+          <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-3 py-1.5 text-xs font-extrabold text-primary">
+            Pending review
+          </span>
+        </div>
 
         {amount > 0 && (
-          <div className="mt-5 divide-y rounded-2xl bg-surface px-4 text-left">
-            <Row l="Amount" v={etb(amount)} />
-            <Row l="Method" v={method} />
-            <Row l="Proof" v={proofLabel || "Submitted"} />
-            <Row l="Status" v="Pending review" />
+          <div className="px-5 pb-5">
+            <div className="divide-y rounded-2xl border bg-surface px-4 text-left">
+              <Row l="Amount" v={etb(amount)} />
+              <Row l="Method" v={method} />
+              <Row l="Proof" v={proofLabel || "Submitted"} />
+              <Row l="Status" v="Pending review" />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Link to="/wallet" className="press rounded-xl bg-secondary py-3 text-sm font-bold text-primary">My Wallet</Link>
+              <Link to="/" className="press rounded-xl bg-accent py-3 text-sm font-bold text-accent-foreground">Back Home</Link>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">Returning home in {seconds} second{seconds === 1 ? "" : "s"}...</p>
           </div>
         )}
-
-        <Link to="/wallet" className="press mt-5 block w-full rounded-2xl bg-accent py-3.5 font-extrabold text-accent-foreground">Back to Wallet</Link>
-        <Link to="/" className="press mt-2 block w-full rounded-2xl bg-secondary py-3 font-bold">Back to Home</Link>
-        <p className="mt-4 text-xs text-muted-foreground">Proof received. Verification usually completes within 24 hours.</p>
       </div>
     </div>
   );

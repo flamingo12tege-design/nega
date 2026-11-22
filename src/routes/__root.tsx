@@ -16,7 +16,7 @@ import { AppShell } from "@/components/cas/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { actions } from "@/lib/store";
-import { defaultPackageImage } from "@/lib/mock-data";
+import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-data";
 
 function NotFoundComponent() {
   return (
@@ -153,16 +153,19 @@ function RootComponent() {
         .order("tier", { ascending: true });
 
       if (!error && data) {
-        actions.setPackages(data.map((row) => ({
-          id: row.id,
-          tier: row.tier,
-          name: row.name,
-          price: Number(row.price),
-          dailyPayout: Number(row.daily_payout),
-          image: row.image_url || defaultPackageImage,
-          short: row.short_description || "CAS appliance package.",
-          details: Array.isArray(row.details) ? row.details : ["CAS appliance package"],
-        })));
+        actions.setPackages(data.map((row) => {
+          const seed = seedAppliances.find((item) => item.id === row.id);
+          return {
+            id: row.id,
+            tier: row.tier,
+            name: row.name,
+            price: Number(row.price),
+            dailyPayout: Number(row.daily_payout),
+            image: seed?.image ?? row.image_url ?? defaultPackageImage,
+            short: row.short_description || seed?.short || "CAS appliance package.",
+            details: Array.isArray(row.details) ? row.details : seed?.details ?? ["CAS appliance package"],
+          };
+        }));
       }
     };
 
