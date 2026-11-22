@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Lock, WalletCards, X } from "lucide-react";
 import { etb } from "@/lib/format";
+import { rewardRules } from "@/lib/mock-data";
 import { actions, getPackage, useStore } from "@/lib/store";
 import { SuccessModal } from "@/components/cas/SuccessModal";
 import { supabase } from "@/lib/supabase";
@@ -75,7 +76,7 @@ function Page() {
         <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-secondary p-3">
           <div><p className="text-xs text-muted-foreground">Daily payout</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout)}</p></div>
           <div><p className="text-xs text-muted-foreground">Monthly</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout * 30)}</p></div>
-          <div><p className="text-xs text-muted-foreground">90-day total</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout * 90)}</p></div>
+          <div><p className="text-xs text-muted-foreground">{rewardRules.packageDurationDays}-day total</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout * rewardRules.packageDurationDays)}</p></div>
         </div>
         <ul className="mt-4 space-y-2">
           {a.details.map((d) => <li key={d} className="flex items-center gap-2 text-sm"><Check className="h-4 w-4 text-success" />{d}</li>)}

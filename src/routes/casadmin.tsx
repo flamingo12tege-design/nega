@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { dailyCommission } from "@/lib/referral";
 import { etb, fmtDate } from "@/lib/format";
+import { rewardRules } from "@/lib/mock-data";
 import { actions, useReferral, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { StatusPill } from "@/components/cas/StatusPill";
@@ -277,7 +278,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                     <div className="flex items-center justify-between gap-2 py-2"><span>Recruitment earned</span><span className="font-bold text-primary">{etb(recruitmentBonus)}</span></div>
                     <div className="flex items-center justify-between gap-2 py-2"><span>Team commission / day</span><span className="font-bold text-primary">{etb(teamCommission)}</span></div>
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">Daily commissions stop after the member's 90-day payout window. From VIP 1 up, the inviter must be at least the invitee's VIP.</p>
+                  <p className="mt-3 text-xs text-muted-foreground">Daily commissions stop after the member's {rewardRules.packageDurationDays}-day payout window. From VIP 1 up, the inviter must be at least the invitee's VIP.</p>
                 </div>
 
                 <div className={card}>
@@ -451,7 +452,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-bold">{a.name}</p>
                         <p className="text-sm font-semibold text-primary">{etb(a.price)}</p>
-                        <p className="text-xs text-muted-foreground">{etb(a.dailyPayout)}/day · {etb(a.dailyPayout * 90)} in 90 days</p>
+                        <p className="text-xs text-muted-foreground">{etb(a.dailyPayout)}/day · {etb(a.dailyPayout * rewardRules.packageDurationDays)} in {rewardRules.packageDurationDays} days</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-primary">VIP {a.tier}</span>
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${locked ? "bg-warning/20 text-primary" : "bg-success/15 text-success"}`}>{locked ? "Locked" : "Open"}</span>
@@ -505,7 +506,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
                       <input type="number" min={0} value={bonus[k]} onChange={(e) => setBonus({ ...bonus, [k]: Number(e.target.value) })} className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5" /></label>
                   ))}
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">Rules: 90-day payout cap per package · inviter VIP must be equal or higher from VIP 1 up · recruitment bonus is direct invites only.</p>
+                <p className="mt-3 text-xs text-muted-foreground">Rules: {rewardRules.packageDurationDays}-day payout cap per package · inviter VIP must be equal or higher from VIP 1 up · recruitment bonus is direct invites only.</p>
                 <button
                   onClick={() => {
                     actions.setReferralRules({ recruitmentBonusPercent: bonus.recruit, dailyCommissionPercentByLevel: [bonus.level1, bonus.level2, bonus.level3] });

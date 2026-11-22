@@ -177,7 +177,7 @@ function Page() {
               <p className="mt-1 text-xs text-muted-foreground">{activeGroup.percent}% of daily income</p>
               <p className="mt-4 text-2xl font-extrabold tabular-nums text-primary">{etb(activeSubtotal)}<span className="text-sm font-semibold text-muted-foreground">/day</span></p>
               <p className="mt-1 text-xs text-muted-foreground">from {activeGroup.members.length} member{activeGroup.members.length === 1 ? "" : "s"}</p>
-              <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-muted px-3 py-2 text-[11px] text-muted-foreground"><Users className="h-3.5 w-3.5 shrink-0" />Commission stops after the 90-day window.</div>
+              <div className="mt-4 flex items-center gap-1.5 rounded-xl bg-muted px-3 py-2 text-[11px] text-muted-foreground"><Users className="h-3.5 w-3.5 shrink-0" />Commission stops after the {rewardRules.packageDurationDays}-day window.</div>
             </div>
 
             <div className="divide-y">

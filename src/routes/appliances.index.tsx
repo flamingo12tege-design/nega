@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/cas/AppShell";
 import { ProductCard } from "@/components/cas/ProductCard";
 
 export const Route = createFileRoute("/appliances/")({
-  head: () => ({ meta: [{ title: "Appliances — CAS" }, { name: "description", content: "Browse eight CAS appliance packages from ETB 800 to ETB 300,000." }, { property: "og:title", content: "Appliances — CAS" }, { property: "og:description", content: "Browse eight CAS appliance packages from ETB 800 to ETB 300,000." }] }),
+  head: () => ({ meta: [{ title: "Appliances — CAS" }, { name: "description", content: "Browse eight CAS appliance packages from ETB 1,300 to ETB 300,000." }, { property: "og:title", content: "Appliances — CAS" }, { property: "og:description", content: "Browse eight CAS appliance packages from ETB 1,300 to ETB 300,000." }] }),
   component: Page,
 });
 

@@ -19,7 +19,7 @@ export const rewardRules = {
   minimumWithdrawal: 300,
   withdrawalFeePercent: 10,
   /** Each active package pays daily income for this many days. */
-  packageDurationDays: 90,
+  packageDurationDays: 45,
 } as const;
 
 /** 6% one-time recruitment bonus + 6% / 4% / 2% daily team commission (A / B / C). */
@@ -34,14 +34,14 @@ export const defaultPackageImage = pack;
 export const isLocked = (a: Appliance) => a.tier >= LOCKED_FROM_TIER;
 
 export const appliances: Appliance[] = [
-  { id: "starter", tier: 1, name: "Electric Kettle", price: 800, dailyPayout: 120, image: kettle, short: "Everyday essentials to begin your CAS journey.", details: ["Entry-level package", "Contents confirmed by CAS admin", "Fast processing"] },
-  { id: "basic", tier: 2, name: "Steam Iron", price: 2000, dailyPayout: 300, image: iron, short: "Practical helpers for daily home care.", details: ["Small home appliance tier", "Contents confirmed by CAS admin", "Standard support"] },
-  { id: "kitchen", tier: 3, name: "Blender", price: 5000, dailyPayout: 750, image: blender, short: "Upgrade your kitchen routine.", details: ["Kitchen appliance tier", "Contents confirmed by CAS admin", "Priority support"] },
-  { id: "family", tier: 4, name: "Rice Cooker", price: 12000, dailyPayout: 1800, image: rice, short: "Made for busy family homes.", details: ["Family tier", "Contents confirmed by CAS admin", "Priority support"] },
-  { id: "comfort", tier: 5, name: "Comfort Package", price: 35000, dailyPayout: 5250, image: microwave, short: "Comfort and convenience, every day.", details: ["Mid-size appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
-  { id: "premium", tier: 6, name: "Premium Package", price: 75000, dailyPayout: 11250, image: washer, short: "Large appliances for a modern home.", details: ["Large appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
-  { id: "elite", tier: 7, name: "Elite Package", price: 150000, dailyPayout: 22500, image: fridge, short: "Top-tier appliances for refined living.", details: ["Elite tier", "Contents confirmed by CAS admin", "VIP support"] },
-  { id: "ultimate", tier: 8, name: "Ultimate Home Package", price: 300000, dailyPayout: 45000, image: pack, short: "The complete CAS home experience.", details: ["Full home tier", "Contents confirmed by CAS admin", "VIP support"] },
+  { id: "starter", tier: 1, name: "Electric Kettle", price: 1300, dailyPayout: 59.8, image: kettle, short: "Everyday essentials to begin your CAS journey.", details: ["Entry-level package", "Contents confirmed by CAS admin", "Fast processing"] },
+  { id: "basic", tier: 2, name: "Steam Iron", price: 4200, dailyPayout: 193.2, image: iron, short: "Practical helpers for daily home care.", details: ["Small home appliance tier", "Contents confirmed by CAS admin", "Standard support"] },
+  { id: "kitchen", tier: 3, name: "Blender", price: 12500, dailyPayout: 575, image: blender, short: "Upgrade your kitchen routine.", details: ["Kitchen appliance tier", "Contents confirmed by CAS admin", "Priority support"] },
+  { id: "family", tier: 4, name: "Rice Cooker", price: 18000, dailyPayout: 828, image: rice, short: "Made for busy family homes.", details: ["Family tier", "Contents confirmed by CAS admin", "Priority support"] },
+  { id: "comfort", tier: 5, name: "Comfort Package", price: 35000, dailyPayout: 1610, image: microwave, short: "Comfort and convenience, every day.", details: ["Mid-size appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
+  { id: "premium", tier: 6, name: "Premium Package", price: 75000, dailyPayout: 3450, image: washer, short: "Large appliances for a modern home.", details: ["Large appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
+  { id: "elite", tier: 7, name: "Elite Package", price: 150000, dailyPayout: 6900, image: fridge, short: "Top-tier appliances for refined living.", details: ["Elite tier", "Contents confirmed by CAS admin", "VIP support"] },
+  { id: "ultimate", tier: 8, name: "Ultimate Home Package", price: 300000, dailyPayout: 13800, image: pack, short: "The complete CAS home experience.", details: ["Full home tier", "Contents confirmed by CAS admin", "VIP support"] },
 ];
 export const initialLockedIds = appliances.filter((a) => a.tier >= LOCKED_FROM_TIER).map((a) => a.id);
 
