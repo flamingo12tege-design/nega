@@ -1,29 +1,24 @@
-# Welcome to your Lovable project
+# CAS
 
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+CAS is a TanStack Start web application for appliance packages, rewards, referrals, wallet activity, and account management.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
 ```
 
-## Built with
+## Scripts
+
+- `bun run dev` — start development server
+- `bun run build` — create production build
+- `bun run test` — run test suite
+
+## Stack
 
 - TanStack Start
-- TypeScript
 - React
+- TypeScript
 - Tailwind CSS
+- Vite

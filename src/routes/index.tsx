@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Wallet, Quote, Tag, CircleHelp, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Tag, CircleHelp, ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
 import { heroSlides, notifications, user } from "@/lib/mock-data";
 import { useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { Section } from "@/components/cas/AppShell";
 import { ProductCard } from "@/components/cas/ProductCard";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -55,6 +56,8 @@ function Hero() {
   );
 }
 
+type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
+
 function Home() {
   const packages = useStore((s) => s.packages);
   const unread = notifications.filter((n) => n.unread).length;
@@ -65,9 +68,31 @@ function Home() {
     { to: "/team", label: "Invite", icon: UserPlus },
     { to: "/offers", label: "Offers", icon: Tag },
     { to: "/how-it-works", label: "How it works", icon: CircleHelp },
-    { to: "/reviews", label: "Reviews", icon: Quote },
-    { to: "/wallet", label: "Wallet", icon: Wallet },
   ] as const;
+
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    const handleInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
+  }, []);
+
+  const installApp = async () => {
+    if (!installPrompt) {
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      toast(isIOS ? "Add CAS to your Home Screen" : "Install CAS", {
+        description: isIOS ? "Tap Share, then choose Add to Home Screen." : "Use your browser menu and choose Install App or Add to Home Screen.",
+      });
+      return;
+    }
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
 
   return (
     <div>
@@ -102,6 +127,10 @@ function Home() {
             <span className="text-center text-xs font-semibold leading-tight">{label}</span>
           </Link>
         ))}
+        <button type="button" onClick={installApp} className="press flex flex-col items-center gap-2">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary text-accent shadow-card"><Download className="h-6 w-6" /></span>
+          <span className="text-center text-xs font-semibold leading-tight">App</span>
+        </button>
       </div>
 
       <Section title="Featured Appliances" action={<Link to="/appliances" className="text-sm font-bold text-accent">See all</Link>}>
@@ -109,7 +138,6 @@ function Home() {
           {packages.slice(0, 4).map((a) => <ProductCard key={a.id} a={a} />)}
         </div>
       </Section>
-
     </div>
   );
 }

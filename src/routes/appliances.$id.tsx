@@ -2,7 +2,6 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Check, Lock } from "lucide-react";
-import { StatusPill } from "@/components/cas/StatusPill";
 import { etb } from "@/lib/format";
 import { actions, getPackage, useStore } from "@/lib/store";
 import { SuccessModal } from "@/components/cas/SuccessModal";
@@ -69,17 +68,6 @@ function Page() {
             <button disabled={purchaseLimitReached} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchaseLimitReached ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchaseLimitReached ? "Purchase limit reached" : "Buy Now"}</button>
             {purchaseLimitReached && <p className="mt-2 text-center text-xs text-muted-foreground">This package has reached its limit of 2 purchases.</p>}
           </>
-        )}
-
-        {purchases.length > 0 && (
-          <div className="mt-6">
-            <p className="text-sm font-bold">Your purchases</p>
-            {purchases.map((p) => (
-              <div key={p.id} className="mt-2 flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm">
-                <span>{p.method}</span><StatusPill s={p.status} />
-              </div>
-            ))}
-          </div>
         )}
       </div>
       <SuccessModal
