@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { BadgeCheck, Copy } from "lucide-react";
 import { normalizeEthiopianPhone } from "@/lib/phone";
-import { AuthLayout, Field, PasswordField } from "@/components/cas/AuthUi";
+import { AuthLayout, Field, PasswordField, PhoneField } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
 
 export const Route = createFileRoute("/register")({
@@ -80,7 +80,7 @@ function Page() {
   return (
     <AuthLayout title="Join CAS" subtitle="Just your phone and a password.">
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Phone Number (+251)" inputMode="tel" placeholder="09XX XXX XXX" value={f.phone} onChange={up("phone")} error={err["phone"]} />
+        <PhoneField inputMode="tel" placeholder="Enter your mobile number" value={f.phone} onChange={up("phone")} error={err["phone"]} />
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />
         <Field label="Invitation code" value={code ?? ""} placeholder="No invitation code" readOnly tabIndex={-1} aria-readonly="true" />

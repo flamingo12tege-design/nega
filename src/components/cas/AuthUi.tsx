@@ -43,6 +43,20 @@ export function Field({ label, error, ...p }: { label: string; error?: string | 
   );
 }
 
+/** Phone input with the country code shown as a fixed prefix inside the field. */
+export function PhoneField({ label = "Mobile Number", error, ...p }: { label?: string; error?: string | undefined } & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="block">
+      <span className="text-sm font-semibold">{label}</span>
+      <span className="mt-1 flex items-center rounded-xl border bg-surface focus-within:border-accent focus-within:ring-2 focus-within:ring-ring/30">
+        <span className="select-none py-3 pl-4 pr-2 text-base font-bold text-success">+251</span>
+        <input {...p} type="tel" className="min-w-0 flex-1 bg-transparent py-3 pr-4 text-base outline-none placeholder:text-muted-foreground" />
+      </span>
+      {error && <span className="mt-1 block text-xs text-destructive">{error}</span>}
+    </label>
+  );
+}
+
 export function PasswordField({ label, error, ...p }: { label: string; error?: string | undefined } & InputHTMLAttributes<HTMLInputElement>) {
   const [show, setShow] = useState(false);
   return (

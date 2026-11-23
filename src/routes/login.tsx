@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { normalizeEthiopianPhone } from "@/lib/phone";
 import { actions } from "@/lib/store";
-import { AuthLayout, Field, PasswordField } from "@/components/cas/AuthUi";
+import { AuthLayout, PasswordField, PhoneField } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
 
 export const Route = createFileRoute("/login")({
@@ -40,7 +40,7 @@ function Page() {
   return (
     <AuthLayout title="Welcome back" subtitle="Log in with your phone number">
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Phone Number" inputMode="tel" placeholder="09XX XXX XXX" value={phone} onChange={(e) => setPhone(e.target.value)} error={err.phone} />
+        <PhoneField inputMode="tel" placeholder="Enter your mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} error={err.phone} />
         <PasswordField label="Password" placeholder="••••••••" value={pw} onChange={(e) => setPw(e.target.value)} error={err.pw} />
         <div className="flex items-center justify-between text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" defaultChecked className="h-4 w-4 accent-accent" />Remember me</label>
