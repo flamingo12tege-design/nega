@@ -25,24 +25,6 @@ function Row({ l, v }: { l: string; v: string }) {
   );
 }
 
-function Step({ title, desc, done, active }: { title: string; desc: string; done?: boolean; active?: boolean }) {
-  return (
-    <li className="flex gap-3">
-      <span
-        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${
-          done ? "bg-success text-white" : active ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
-        }`}
-      >
-        {done ? <CheckCircle2 className="h-4 w-4" /> : <span className="h-2 w-2 rounded-full bg-current" />}
-      </span>
-      <div className="min-w-0 pt-0.5">
-        <p className={`text-sm font-bold ${active ? "text-primary" : ""}`}>{title}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{desc}</p>
-      </div>
-    </li>
-  );
-}
-
 function Page() {
   const navigate = useNavigate();
   const { amount, method, proof, txn } = Route.useSearch();
@@ -109,15 +91,6 @@ function Page() {
             </div>
           </div>
         )}
-
-        <div className="rise mt-4 rounded-3xl bg-card p-5 shadow-card">
-          <p className="text-sm font-bold text-primary">What happens next</p>
-          <ol className="mt-4 space-y-4">
-            <Step done title="Request submitted" desc="Your proof and amount were received." />
-            <Step active title="Under review" desc="Our team verifies your CBE transfer — usually within 24 hours." />
-            <Step title="Wallet credited" desc="The balance appears in your wallet once approved." />
-          </ol>
-        </div>
 
         <div className="mt-auto pt-6">
           <div className="grid grid-cols-2 gap-3">

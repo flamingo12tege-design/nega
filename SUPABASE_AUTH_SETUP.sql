@@ -180,7 +180,6 @@ begin
   set wallet_balance = wallet_balance + v_row.amount
   where id = v_row.user_id;
 
-  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, metadata)
   values (auth.uid(), 'approve_recharge', 'wallet_ledger', p_ledger_id::text,
           jsonb_build_object('amount', v_row.amount, 'user_id', v_row.user_id));
 
@@ -209,7 +208,6 @@ begin
     raise exception 'Recharge already processed or not found';
   end if;
 
-  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, metadata)
   values (auth.uid(), 'reject_recharge', 'wallet_ledger', p_ledger_id::text, '{}'::jsonb);
 end;
 $$;
@@ -283,7 +281,6 @@ begin
   set status = 'completed', amount = -abs(v_row.amount)
   where id = p_ledger_id;
 
-  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, metadata)
   values (auth.uid(), 'approve_withdrawal', 'wallet_ledger', p_ledger_id::text,
           jsonb_build_object('amount', abs(v_row.amount), 'user_id', v_row.user_id));
 
@@ -312,7 +309,6 @@ begin
     raise exception 'Withdrawal already processed or not found';
   end if;
 
-  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, metadata)
   values (auth.uid(), 'reject_withdrawal', 'wallet_ledger', p_ledger_id::text, '{}'::jsonb);
 end;
 $$;
