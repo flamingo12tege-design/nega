@@ -91,7 +91,7 @@ export function useSupabaseWallet() {
       const positiveRows = completedRows.filter((row) => row.amount > 0);
       const teamRows = completedRows.filter((row) => ["team_commission", "referral_bonus", "recruitment_bonus", "commission"].includes(row.type));
       const payRows = completedRows.filter((row) => ["daily_income", "pay_income"].includes(row.type));
-      const withdrawalRows = completedRows.filter((row) => row.type === "withdrawal" || row.amount < 0);
+      const withdrawalRows = completedRows.filter((row) => row.type === "withdrawal");
 
       const sum = (items: WalletLedgerRow[]) => items.reduce((total, row) => total + Math.abs(row.amount), 0);
       const sumInPeriod = (items: WalletLedgerRow[], start: Date) =>
