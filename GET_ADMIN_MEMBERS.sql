@@ -1,4 +1,3 @@
--- Admin-only: return the member list (profiles with the member role) for the admin dashboard.
 create or replace function public.get_admin_members()
 returns jsonb
 language plpgsql
