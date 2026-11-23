@@ -5,6 +5,7 @@ import { Check, Copy, Hash, ImageUp } from "lucide-react";
 import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
+import { depositAccount as defaultDepositAccount } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/recharge_/payment")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -32,9 +33,9 @@ function Page() {
         .in("key", ["deposit_name", "deposit_bank", "deposit_account"]);
       const values = Object.fromEntries((data ?? []).map((row) => [row.key, row.value]));
       setDepositAccount({
-        name: String(values.deposit_name ?? ""),
-        bank: String(values.deposit_bank ?? "CBE"),
-        account: String(values.deposit_account ?? ""),
+        name: String(values.deposit_name || defaultDepositAccount.name),
+        bank: String(values.deposit_bank || defaultDepositAccount.bank),
+        account: String(values.deposit_account || defaultDepositAccount.account),
       });
     };
     void load();
