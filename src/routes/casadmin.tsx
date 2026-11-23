@@ -10,6 +10,7 @@ import { dailyCommission } from "@/lib/referral";
 import { etb, fmtDate } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { actions, useReferral, useStore } from "@/lib/store";
+import type { AdminUser } from "@/lib/mock-data";
 import { Logo } from "@/components/cas/Logo";
 import { StatusPill } from "@/components/cas/StatusPill";
 import { supabase } from "@/lib/supabase";
@@ -120,7 +121,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const packages = useStore((s) => s.packages);
   const lockedIds = useStore((s) => s.lockedIds);
   const news = useStore((s) => s.news);
-  const adminUsers = useStore((s) => s.adminUsers);
+  const [members, setMembers] = useState<AdminUser[]>([]);
   const { vip, recruitmentBonus, dailyCommission: teamCommission } = useReferral();
   const [bonus, setBonus] = useState({
     recruit: referral.recruitmentBonusPercent,
@@ -205,8 +206,38 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     { label: "C-Level · 90 people", amount: dailyCommission(3000 * 90, bonus.level3) },
   ];
   const previewTotal = preview.reduce((sum, row) => sum + row.amount, 0);
-  const filteredUsers = adminUsers.filter((u) => `${u.id} ${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase().trim()));
-  const selectedUser = adminUsers.find((u) => u.id === selectedUserId) ?? null;
+  const filteredUsers = members.filter((u) => `${u.id} ${u.name} ${u.phone}`.toLowerCase().includes(search.toLowerCase().trim()));
+  const selectedUser = members.find((u) => u.id === selectedUserId) ?? null;
+
+  const loadMembers = async () => {
+    const { data, error } = await supabase.rpc("get_admin_members");
+    if (error) return;
+    const rows = (data?.members ?? []) as Array<Record<string, unknown>>;
+    const typed = rows.map((row) => ({
+      id: String(row["id"] ?? ""),
+      member_id: String(row["member_id"] ?? ""),
+      phone: String(row["phone"] ?? ""),
+      wallet_balance: Number(row["wallet_balance"] ?? 0),
+      created_at: String(row["created_at"] ?? ""),
+    }));
+    setMembers(
+      typed.map((row) => ({
+        id: row.id,
+        name: row.member_id || row.id,
+        phone: row.phone,
+        status: "Active" as const,
+        balance: row.wallet_balance,
+        purchases: [],
+        deposits: [],
+        history: [],
+        joined: row.created_at,
+      })),
+    );
+  };
+
+  useEffect(() => {
+    void loadMembers();
+  }, []);
 
   useEffect(() => {
     const channel = supabase.channel("admin_recharge_updates");
@@ -272,7 +303,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {[
-                    { i: Users, l: "Members", v: adminUsers.length.toLocaleString(), s: "Registered accounts" },
+                    { i: Users, l: "Members", v: members.length.toLocaleString(), s: "Registered accounts" },
                     { i: ShoppingBag, l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
                     { i: BarChart3, l: "Your VIP", v: String(vip), s: "Highest approved VIP" },
                     { i: Wallet, l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
@@ -397,7 +428,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
             ) : (
               <div className="space-y-4">
                 <div className={card}>
-                  <p className="font-bold">Member directory <span className="text-sm font-normal text-muted-foreground">· {adminUsers.length} members</span></p>
+                  <p className="font-bold">Member directory <span className="text-sm font-normal text-muted-foreground">· {members.length} members</span></p>
                   <p className="mt-1 text-xs text-muted-foreground">Search by ID, name or phone. Select a member to open their profile.</p>
                   <label className="mt-3 flex items-center gap-2 rounded-xl border bg-surface px-3">
                     <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
