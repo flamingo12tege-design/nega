@@ -27,7 +27,7 @@ type Tab = (typeof tabs)[number]["k"];
 
 const card = "rounded-2xl bg-card p-4 shadow-card";
 
-function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
+function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -36,8 +36,9 @@ function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    const email = username.trim().toLowerCase();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: username.trim().toLowerCase(),
+      email,
       password,
     });
 
@@ -59,7 +60,7 @@ function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
     }
 
     sessionStorage.setItem("cas_admin_authenticated", "true");
-    onSuccess();
+    onSuccess(email);
   };
 
   return (
@@ -91,21 +92,25 @@ function AdminSignIn({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function AdminRoute() {
-  const [authenticated, setAuthenticated] = useState(() =>
-    typeof window !== "undefined" && sessionStorage.getItem("cas_admin_authenticated") === "true"
-  );
+  const [authenticated, setAuthenticated] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
 
-  if (!authenticated) return <AdminSignIn onSuccess={() => setAuthenticated(true)} />;
+  // Read the flag after mount so SSR HTML and the first client render agree.
+  useEffect(() => {
+    setAuthenticated(typeof window !== "undefined" && sessionStorage.getItem("cas_admin_authenticated") === "true");
+  }, []);
+
+  if (!authenticated) return <AdminSignIn onSuccess={(email) => { setAdminEmail(email); setAuthenticated(true); }} />;
 
   const signOut = () => {
     sessionStorage.removeItem("cas_admin_authenticated");
     setAuthenticated(false);
   };
 
-  return <Page onSignOut={signOut} />;
+  return <Page onSignOut={signOut} adminEmail={adminEmail} />;
 }
 
-function Page({ onSignOut }: { onSignOut: () => void }) {
+function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: string }) {
   const [tab, setTab] = useState<Tab>("analytics");
   const purchases = useStore((s) => s.purchases);
   const tasks = useStore((s) => s.tasks);
@@ -231,6 +236,7 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
             <Logo className="h-8" />
             <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">Admin</span>
             <span className="hidden text-sm text-muted-foreground sm:block">Operations console</span>
+            {adminEmail ? <span className="hidden max-w-[10rem] truncate text-xs text-muted-foreground md:inline">{adminEmail}</span> : null}
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-xs text-muted-foreground md:block">{fmtDate(new Date().toISOString())}</span>
