@@ -54,7 +54,13 @@ function Page() {
     });
 
     if (error) {
-      setErr({ phone: error.message });
+      const alreadyRegistered = /already registered|already exists|duplicate/i.test(error.message);
+      setErr({
+        phone: alreadyRegistered
+          ? "This mobile number is already registered — please log in instead."
+          : error.message,
+      });
+      toast.error("Could not create account", { description: error.message });
       return;
     }
 
@@ -70,6 +76,7 @@ function Page() {
 
       if (profileError) {
         setErr({ phone: profileError.message });
+        toast.error("Could not save your profile", { description: profileError.message });
         return;
       }
     }
