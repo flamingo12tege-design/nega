@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import cbeLogo from "@/assets/cbe-logo.png";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
-import { minimumRechargeAmount, useStore } from "@/lib/store";
+import { actions, minimumRechargeAmount, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
 const methods = ["CBE Birr"];
@@ -14,6 +14,12 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   const navigate = useNavigate();
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("CBE Birr");
+  const [account, setAccount] = useState(payoutAccount ?? "");
+  const saveAccount = () => {
+    if (!/^\d{13}$/.test(account)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
+    actions.setPayoutAccount(account);
+    toast.success("Bank account saved", { description: "Your CBE account details are attached." });
+  };
   const n = Number(amount);
   const minPackageAmount = useStore(minimumRechargeAmount);
   const minimumAmount = kind === "Withdraw" ? rewardRules.minimumWithdrawal : minPackageAmount;
@@ -75,6 +81,21 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
             {methods.map((m) => <button type="button" key={m} onClick={() => setMethod(m)} className={`press flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-semibold ${method === m ? "border-accent bg-accent/10 text-primary" : ""}`}>{m === "CBE Birr" && <img src={cbeLogo} alt="" className="h-5 w-5 object-contain" />}{m}</button>)}
           </div>
         </div>
+        {kind === "Withdraw" && !payoutAccount && (
+          <div className="space-y-2 rounded-xl border border-accent bg-accent/10 p-3">
+            <p className="text-xs font-semibold text-foreground">Save a bank account to withdraw</p>
+            <div className="flex gap-2">
+              <input
+                value={account}
+                onChange={(e) => setAccount(e.target.value.replace(/\D/g, "").slice(0, 13))}
+                placeholder="13-digit CBE account"
+                inputMode="numeric"
+                className="min-w-0 flex-1 rounded-xl border bg-surface px-3 py-2.5 text-sm font-bold outline-none focus:border-accent"
+              />
+              <button type="button" onClick={saveAccount} className="press rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-primary">Save</button>
+            </div>
+          </div>
+        )}
         {kind === "Withdraw" && payoutAccount && (
           <div className="flex items-center gap-3 rounded-xl border border-accent bg-accent/10 p-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Check className="h-4 w-4" /></span>

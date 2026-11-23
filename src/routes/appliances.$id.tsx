@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Check, Lock, WalletCards, X } from "lucide-react";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
-import { actions, getPackage, useStore } from "@/lib/store";
+import { actions, getPackage, useStore, MAX_PURCHASES_PER_PACKAGE } from "@/lib/store";
 import { SuccessModal } from "@/components/cas/SuccessModal";
 import { supabase } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -44,6 +44,18 @@ function Page() {
     if (!sessionData.session) {
       toast.error("Please log in first");
       setPurchasing(false);
+      return;
+    }
+
+    const { data: ownedData } = await supabase
+      .from("purchases")
+      .select("id,package_id,status")
+      .eq("user_id", sessionData.session.user.id)
+      .eq("package_id", a.id);
+    const approvedCount = (ownedData ?? []).filter((p) => p.status === "approved").length;
+    if (approvedCount >= MAX_PURCHASES_PER_PACKAGE) {
+      setPurchasing(false);
+      toast.error(`You can only buy this package ${MAX_PURCHASES_PER_PACKAGE} times.`);
       return;
     }
 

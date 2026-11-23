@@ -136,7 +136,7 @@ function Page() {
     <div>
       <PageHeader title="My Team" subtitle="Invite friends. Build your chain." />
 
-      <section className="-mt-4 mx-5 min-w-0 overflow-hidden rounded-3xl bg-primary text-primary-foreground shadow-card">
+      <section className="mt-4 mx-5 min-w-0 overflow-hidden rounded-3xl bg-primary text-primary-foreground shadow-card">
         <div className="relative">
           <img src={heroFriends} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-20" />
           <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/95 to-primary/70" />
