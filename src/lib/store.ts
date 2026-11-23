@@ -7,10 +7,11 @@ import {
   initialTasks,
   referralRules,
   rewardRules,
-  user,
+  type AdminUser,
   type Appliance,
   type NewsItem,
   type TaskStatus,
+  type TeamMember,
 } from "./mock-data";
 import { claimStatus, todayKey, type DailyClaim } from "./daily-income";
 import {

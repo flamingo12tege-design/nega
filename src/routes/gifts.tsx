@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Gift, Users, Sparkles, Tag } from "lucide-react";
+import { etb, fmtDate } from "@/lib/format";
 import { PageHeader, Section } from "@/components/cas/AppShell";
 
 export const Route = createFileRoute("/gifts")({
@@ -7,8 +8,10 @@ export const Route = createFileRoute("/gifts")({
   component: Page,
 });
 
+type RewardRow = { id: string; type: string; amount: number; date: string; status: string };
+
 function Page() {
-  const rewards: never[] = [];
+  const rewards: RewardRow[] = [];
   const cards = [
     { i: Gift, t: "Registration gift", d: "Credited when you joined CAS.", to: "/wallet" as const },
     { i: Users, t: "Referral rewards", d: "Earn when invited friends join.", to: "/team" as const },
@@ -25,7 +28,9 @@ function Page() {
       </div>
       <Section title="Reward History">
         <div className="divide-y overflow-hidden rounded-2xl bg-card shadow-card">
-          {rewards.map((t) => (
+          {rewards.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">No rewards yet. Your bonuses and gifts will appear here.</p>
+          ) : rewards.map((t) => (
             <div key={t.id} className="flex justify-between gap-3 p-4">
               <div><p className="text-sm font-bold">{t.type}</p><p className="text-xs text-muted-foreground">{fmtDate(t.date)} · {t.status}</p></div>
               <p className="font-extrabold text-success">+{etb(t.amount)}</p>

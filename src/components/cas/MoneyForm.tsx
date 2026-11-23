@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
-import cbeLogo from "@/assets/cbe-logo.svg";
+import cbeLogo from "@/assets/cbe-logo.png";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { minimumRechargeAmount, useStore } from "@/lib/store";

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { icons, Clock3, PackageOpen, Users } from "lucide-react";
+import { Sparkles, Clock3, PackageOpen, Users, type LucideIcon } from "lucide-react";
 import { rewardRules } from "@/lib/mock-data";
 import { claimStatus, claimedDays, todayKey, totalClaimed } from "@/lib/daily-income";
 import { etb, fmtDate } from "@/lib/format";
@@ -11,6 +11,9 @@ import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
 import type { TaskStatus } from "@/lib/mock-data";
 
 type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
+
+/** Small allow-list so we don't pull every lucide icon into the bundle. */
+const taskIcons: Record<string, LucideIcon> = { Sparkles };
 
 export const Route = createFileRoute("/tasks")({
   head: () => ({ meta: [{ title: "Tasks — CAS" }, { name: "description", content: "Claim daily income from your active packages and earn eligible rewards." }, { property: "og:title", content: "Tasks — CAS" }, { property: "og:description", content: "Claim daily income from your active packages and earn eligible rewards." }] }),
@@ -202,7 +205,7 @@ function Page() {
         <Section title="Bonus Tasks">
           <div className="grid gap-3 sm:grid-cols-2">
             {tasks.map((t) => {
-              const Icon = icons[t.icon as keyof typeof icons] ?? icons.Sparkles;
+              const Icon = taskIcons[t.icon] ?? Sparkles;
               const btn = t.status === "Available" ? "Start Task" : t.status === "In Progress" ? "Complete Task" : t.status;
               const disabled = t.status === "Under Review" || t.status === "Completed";
               return (

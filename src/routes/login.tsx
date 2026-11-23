@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { normalizeEthiopianPhone } from "@/lib/phone";
@@ -48,7 +48,6 @@ function Page() {
         </div>
         <button className="press w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Log in</button>
         <p className="text-center text-xs text-muted-foreground">New here? CAS is invitation-only — ask a member for an invite link.</p>
-        <p className="text-center text-xs"><Link to="/register" search={{ ref: "CAS482" }} className="font-semibold text-primary underline">Try a sample invite</Link></p>
       </form>
     </AuthLayout>
   );

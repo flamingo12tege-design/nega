@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UserRound, Copy, Send, MessageCircle, Users } from "lucide-react";
 import heroFriends from "@/assets/hero_friends.webp";
-import { rewardRules, user, type TeamMember } from "@/lib/mock-data";
+import { rewardRules, type TeamMember } from "@/lib/mock-data";
 import { dailyCommission, isVipEligible } from "@/lib/referral";
 import { etb, fmtDate } from "@/lib/format";
 import { useReferral } from "@/lib/store";
@@ -21,7 +21,7 @@ const shortLevel: Record<TeamMember["level"], string> = { 1: "A-Level", 2: "B-Le
 function Page() {
   const [origin, setOrigin] = useState("");
   const [levelTab, setLevelTab] = useState<1 | 2 | 3>(1);
-  const [myCode, setMyCode] = useState(user.referralCode);
+  const [myCode, setMyCode] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
   // Each member shares their own code (derived from their unique member ID).
   useEffect(() => {
@@ -101,7 +101,7 @@ function Page() {
 
             <div className="w-full min-w-0 self-start rounded-2xl bg-background p-3 text-primary shadow-xl shadow-primary-foreground/10 sm:p-4">
               <p className="text-xs text-muted-foreground">Your invite code</p>
-              <p className="text-lg font-extrabold tracking-tight">{myCode}</p>
+              <p className="text-lg font-extrabold tracking-tight">{myCode || "—"}</p>
               <div className="mt-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-xl bg-muted p-2">
                 <span className="min-w-0 flex-1 truncate text-xs">{link}</span>
                 <button onClick={copy} aria-label="Copy referral link" className="press flex shrink-0 items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-bold text-primary-foreground transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"><Copy className="h-3.5 w-3.5" />Copy</button>
