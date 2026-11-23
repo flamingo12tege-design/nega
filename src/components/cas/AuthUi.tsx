@@ -1,7 +1,7 @@
 const authImg = "/image.jpg";
 import { ShieldCheck, Gift, Users } from "lucide-react";
 import { useState, type InputHTMLAttributes, type ReactNode } from "react";
-import { Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "./Logo";
 
 export function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: string | undefined; children: ReactNode }) {
@@ -58,16 +58,3 @@ export function PasswordField({ label, error, ...p }: { label: string; error?: s
     </label>
   );
 }
-
-export function _UnusedCaptcha({ code, onRefresh }: { code: string; onRefresh: () => void }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex flex-1 justify-center gap-2 rounded-xl bg-primary py-3 font-mono text-2xl font-extrabold tracking-widest text-accent select-none">
-        {code.split("").map((d, i) => <span key={i} style={{ transform: `rotate(${(i % 2 ? 1 : -1) * 8}deg)` }}>{d}</span>)}
-      </div>
-      <button type="button" onClick={onRefresh} aria-label="New code" className="press grid h-12 w-12 place-items-center rounded-xl bg-secondary"><RefreshCw className="h-5 w-5" /></button>
-    </div>
-  );
-}
-
-export const newCode = () => String(Math.floor(1000 + Math.random() * 9000));

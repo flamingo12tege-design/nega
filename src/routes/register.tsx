@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, BadgeCheck, Copy } from "lucide-react";
+import { BadgeCheck, Copy } from "lucide-react";
 import { normalizeEthiopianPhone } from "@/lib/phone";
-import { AuthLayout, Field, PasswordField, newCode } from "@/components/cas/AuthUi";
+import { AuthLayout, Field, PasswordField } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
 
 export const Route = createFileRoute("/register")({
@@ -15,11 +15,9 @@ export const Route = createFileRoute("/register")({
 function Page() {
   const { ref } = Route.useSearch();
   const code = ref?.toUpperCase();
-  const [f, setF] = useState({ phone: "", pw: "", pw2: "", cap: "" });
-  const [cap, setCap] = useState("····");
+  const [f, setF] = useState({ phone: "", pw: "", pw2: "" });
   const [err, setErr] = useState<Record<string, string | undefined>>({});
   const [memberId, setMemberId] = useState<string | null>(null);
-  useEffect(() => setCap(newCode()), []);
 
   if (memberId) {
     return (
@@ -42,10 +40,9 @@ function Page() {
       phone: normalizeEthiopianPhone(f.phone) ? undefined : "Enter a valid Ethiopian number",
       pw: f.pw.length >= 8 ? undefined : "At least 8 characters",
       pw2: f.pw === f.pw2 ? undefined : "Passwords do not match",
-      cap: f.cap === cap ? undefined : "Code does not match",
     };
     setErr(next);
-    if (Object.values(next).some(Boolean)) { if (next.cap !== undefined) { setCap(newCode()); setF({ ...f, cap: "" }); } return; }
+    if (Object.values(next).some(Boolean)) return;
     const phone = normalizeEthiopianPhone(f.phone);
     if (!phone) return;
 
@@ -83,20 +80,10 @@ function Page() {
   return (
     <AuthLayout title="Join CAS" subtitle="Just your phone and a password.">
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Phone Number" inputMode="tel" placeholder="09XX XXX XXX" value={f.phone} onChange={up("phone")} error={err["phone"]} />
+        <Field label="Phone Number (+251)" inputMode="tel" placeholder="09XX XXX XXX" value={f.phone} onChange={up("phone")} error={err["phone"]} />
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />
-        <div>
-          <span className="text-sm font-semibold">Security code</span>
-          <div className="mt-1 flex items-stretch gap-2">
-            <div className="flex w-28 shrink-0 select-none items-center justify-center gap-1 rounded-xl bg-primary font-mono text-xl font-extrabold text-accent">
-              {cap.split("").map((d, i) => <span key={i} style={{ transform: `rotate(${(i % 2 ? 1 : -1) * 8}deg)` }}>{d}</span>)}
-            </div>
-            <input inputMode="numeric" maxLength={4} placeholder="Enter code" value={f.cap} onChange={(e) => setF({ ...f, cap: e.target.value.replace(/\D/g, "") })} className="min-w-0 flex-1 rounded-xl border bg-surface px-3 py-3 text-base outline-none focus:border-accent" />
-            <button type="button" onClick={() => setCap(newCode())} aria-label="New code" className="press grid w-12 shrink-0 place-items-center rounded-xl bg-secondary"><RefreshCw className="h-5 w-5" /></button>
-          </div>
-          {err["cap"] && <span className="mt-1 block text-xs text-destructive">{err["cap"]}</span>}
-        </div>
+        <Field label="Invitation code" value={code ?? ""} placeholder="No invitation code" readOnly tabIndex={-1} aria-readonly="true" />
         <button className="press !mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Create account</button>
         <p className="text-center text-sm">Have an account? <Link to="/login" className="font-semibold text-accent">Log in</Link></p>
       </form>
