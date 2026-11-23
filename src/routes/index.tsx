@@ -59,7 +59,6 @@ function Hero() {
 function Home() {
   const packages = useStore((s) => s.packages);
   const [memberId, setMemberId] = useState("CAS Member");
-  const [unread, setUnread] = useState(0);
   const quick = [
     { to: "/news", label: "News", icon: Newspaper },
     { to: "/gifts", label: "Gifts", icon: Gift },
@@ -72,12 +71,12 @@ function Home() {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData.session?.user.id;
       if (!userId) return;
-      const [{ data: profile }, { count }] = await Promise.all([
-        supabase.from("profiles").select("member_id").eq("id", userId).maybeSingle(),
-        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("unread", true),
-      ]);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("member_id")
+        .eq("id", userId)
+        .maybeSingle();
       if (profile?.member_id) setMemberId(profile.member_id);
-      setUnread(count ?? 0);
     };
     void loadProfile();
   }, []);
@@ -95,7 +94,6 @@ function Home() {
         <div className="flex shrink-0 items-center gap-2">
           <Link to="/notifications" aria-label="Notifications" className="press relative grid h-10 w-10 place-items-center rounded-full bg-card shadow-card">
             <Bell className="h-5 w-5" />
-            {unread > 0 && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-card" />}
           </Link>
           <Link to="/profile" className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground"><UserRound className="h-5 w-5" /></Link>
         </div>
