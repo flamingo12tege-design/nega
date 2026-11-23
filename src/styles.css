@@ -54,6 +54,8 @@
 }
 
 :root {
+  /* Bump to force a fresh stylesheet filename after CDN cache refreshes. */
+  --cas-asset-version: 3;
   --radius: 1rem;
   /* CAS navy #092653, orange #FF9015 */
   --background: oklch(1 0 0);
