@@ -27,8 +27,8 @@ function Page() {
   const fee = (amount * rewardRules.withdrawalFeePercent) / 100;
   const receive = amount - fee;
   return (
-    <div className="px-5 py-8 lg:py-12">
-      <div className="mx-auto w-full max-w-md rounded-3xl bg-card p-6 text-center shadow-card">
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-8">
+      <div className="w-full rounded-3xl bg-card p-6 text-center shadow-card">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-success/15 text-success"><CheckCircle2 className="h-9 w-9" /></span>
         <h1 className="mt-4 text-xl font-extrabold">Withdraw request submitted</h1>
         {amount > 0 ? (

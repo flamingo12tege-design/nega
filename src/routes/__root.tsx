@@ -20,7 +20,7 @@ import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-da
 
 function NotFoundComponent() {
   return (
-    <div className="fixed inset-0 z-[100] grid min-h-dvh place-items-center overflow-hidden bg-surface px-5">
+    <div className="grid min-h-dvh place-items-center overflow-hidden bg-surface px-5">
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-accent/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-28 -right-20 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
       <div className="rise relative w-full max-w-md text-center">

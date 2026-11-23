@@ -17,7 +17,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 		path.startsWith("/login") ||
 		path.startsWith("/register") ||
 		path.startsWith("/admin") ||
-		path.startsWith("/casadmin");
+		path.startsWith("/casadmin") ||
+		// Result screens are full-page confirmations: no shell, no bottom nav.
+		path.startsWith("/recharge/success") ||
+		path.startsWith("/withdraw/success");
 	if (bare) return <>{children}</>;
 	const active = (to: string) => (to === "/" ? path === "/" : path.startsWith(to));
 
@@ -45,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 			</aside>
 			<main
 				key={path}
-				className="rise mx-auto w-full max-w-5xl pb-28 lg:pb-10"
+				className="fade mx-auto w-full max-w-5xl pb-28 lg:pb-10"
 			>
 				{children}
 			</main>

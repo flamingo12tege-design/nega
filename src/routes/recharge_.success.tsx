@@ -65,7 +65,7 @@ function Page() {
   }, [navigate]);
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto bg-surface">
+    <div className="relative min-h-dvh bg-surface">
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-success/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-accent/15 blur-3xl" />
 
