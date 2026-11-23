@@ -30,6 +30,12 @@ export type ClaimResult =
 export type CommissionClaim = { id: string; date: string; amount: number };
 export type RecruitmentCredit = { id: string; member: string; amount: number; date: string };
 
+/**
+ * A member may hold up to two purchases of the same package — the second one
+ * (VIP package #2) is allowed; further repeats are refused.
+ */
+export const MAX_PURCHASES_PER_PACKAGE = 2;
+
 type State = {
   purchases: Purchase[];
   tasks: typeof initialTasks;
@@ -120,7 +126,8 @@ export const useReferral = () => {
 
 export const actions = {
   addPurchase: (applianceId: string, method: string) => {
-    if (state.purchases.filter((purchase) => purchase.applianceId === applianceId).length >= 2) return false;
+    const owned = state.purchases.filter((purchase) => purchase.applianceId === applianceId).length;
+    if (owned >= MAX_PURCHASES_PER_PACKAGE) return false;
     set((s) => ({ ...s, purchases: [{ id: crypto.randomUUID(), applianceId, method, status: "Approved", date: new Date().toISOString() }, ...s.purchases] }));
     return true;
   },
