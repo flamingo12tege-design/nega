@@ -89,7 +89,7 @@ function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> 
   ];
   const rows = [
     { l: "This week", v: wallet.thisWeek, i: Sparkles },
-    { l: "Total revenue", v: wallet.totalRevenue, i: PiggyBank },
+    { l: "Total deposit", v: wallet.totalDeposit, i: PiggyBank },
     { l: "Total withdrawal", v: wallet.totalWithdrawal, i: Landmark },
   ];
   return (

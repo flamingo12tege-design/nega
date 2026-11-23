@@ -15,7 +15,7 @@ export type WalletSummary = {
   thisMonth: number;
   teamBonus: number;
   payIncome: number;
-  totalRevenue: number;
+  totalDeposit: number;
   totalWithdrawal: number;
   ledger: WalletLedgerRow[];
 };
@@ -26,7 +26,7 @@ const empty: WalletSummary = {
   thisMonth: 0,
   teamBonus: 0,
   payIncome: 0,
-  totalRevenue: 0,
+  totalDeposit: 0,
   totalWithdrawal: 0,
   ledger: [],
 };
@@ -88,7 +88,7 @@ export function useSupabaseWallet() {
 
       const completedRows = rows.filter((row) => row.status === "completed");
       const incomeRows = completedRows.filter((row) => incomeTypes.has(row.type));
-      const positiveRows = completedRows.filter((row) => row.amount > 0);
+      const depositRows = completedRows.filter((row) => row.type === "deposit" || row.type === "recharge");
       const teamRows = completedRows.filter((row) => ["team_commission", "referral_bonus", "recruitment_bonus", "commission"].includes(row.type));
       const payRows = completedRows.filter((row) => ["daily_income", "pay_income"].includes(row.type));
       const withdrawalRows = completedRows.filter((row) => row.type === "withdrawal");
@@ -103,7 +103,7 @@ export function useSupabaseWallet() {
         thisMonth: sumInPeriod(incomeRows, month),
         teamBonus: sum(teamRows),
         payIncome: sum(payRows),
-        totalRevenue: sum(positiveRows),
+        totalDeposit: sum(depositRows),
         totalWithdrawal: sum(withdrawalRows),
         ledger: rows,
       });
