@@ -258,16 +258,30 @@ function Page({ onSignOut }: { onSignOut: () => void }) {
         <main key={tab} className="rise min-w-0 space-y-4">
           {tab === "analytics" && (
             <>
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                {[
-                  { l: "Members", v: adminUsers.length.toLocaleString(), s: "Registered accounts" },
-                  { l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
-                  { l: "Your VIP", v: String(vip), s: "Highest approved VIP" },
-                  { l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
-                ].map(({ l, v, s }) => (
-                  <div key={l} className={card}><p className="text-xs text-muted-foreground">{l}</p><p className="mt-1 text-xl font-extrabold">{v}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{s}</p></div>
-                ))}
-              </div>
+              <section className="space-y-3">
+                <div>
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Overview</p>
+                  <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-primary">Operations snapshot</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Live counters across the referral tree, package approvals and wallet credits.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    { i: Users, l: "Members", v: adminUsers.length.toLocaleString(), s: "Registered accounts" },
+                    { i: ShoppingBag, l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
+                    { i: BarChart3, l: "Your VIP", v: String(vip), s: "Highest approved VIP" },
+                    { i: Wallet, l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
+                  ].map(({ i: Icon, l, v, s }) => (
+                    <div key={l} className={card}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-semibold text-muted-foreground">{l}</p>
+                        <span className="rounded-xl bg-secondary px-3 py-2 text-primary"><Icon className="h-4 w-4" /></span>
+                      </div>
+                      <p className="mt-2 text-2xl font-extrabold tracking-tight text-primary">{v}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{s}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
               <div className="grid gap-3 lg:grid-cols-2">
                 <div className={card}>
