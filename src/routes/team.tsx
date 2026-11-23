@@ -4,7 +4,13 @@ import { toast } from "sonner";
 import { UserRound, Copy, Send, MessageCircle, Users } from "lucide-react";
 import heroFriends from "@/assets/hero_friends.webp";
 import { rewardRules, type TeamMember } from "@/lib/mock-data";
-import { dailyCommission, isVipEligible } from "@/lib/referral";
+import {
+  dailyCommission,
+  isVipEligible,
+  recruitmentBonusTotal,
+  teamCommissionTotal,
+  type ReferralLevel,
+} from "@/lib/referral";
 import { etb, fmtDate } from "@/lib/format";
 import { useReferral } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -18,30 +24,77 @@ export const Route = createFileRoute("/team")({
 const levelName: Record<TeamMember["level"], string> = { 1: "A-Level · direct", 2: "B-Level", 3: "C-Level" };
 const shortLevel: Record<TeamMember["level"], string> = { 1: "A-Level", 2: "B-Level", 3: "C-Level" };
 
+type RawTreeMember = {
+  id: string;
+  member_id: string | null;
+  level: number;
+  vip: number | null;
+  package_price: number | null;
+  daily_income: number | null;
+  days_active: number | null;
+  status: string | null;
+  joined: string | null;
+};
+type ReferralTree = { inviter_vip: number | null; members: RawTreeMember[] | null };
+
 function Page() {
   const [origin, setOrigin] = useState("");
   const [levelTab, setLevelTab] = useState<1 | 2 | 3>(1);
   const [myCode, setMyCode] = useState("");
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [vip, setVip] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   useEffect(() => setOrigin(window.location.origin), []);
-  // Each member shares their own code (derived from their unique member ID).
+  // Load the caller's own shareable code plus their real A / B / C downline.
   useEffect(() => {
-    const loadCode = async () => {
+    const load = async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const authUser = sessionData.session?.user;
         if (!authUser) return;
-        const { data } = await supabase.from("profiles").select("member_id").eq("id", authUser.id).maybeSingle();
-        const memberId = data?.member_id as string | undefined;
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("member_id")
+          .eq("id", authUser.id)
+          .maybeSingle();
+        const memberId = profile?.member_id as string | undefined;
         if (memberId) setMyCode(memberId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
+
+        const { data, error } = await supabase.rpc("get_referral_tree");
+        if (error) {
+          setLoadError(true);
+          return;
+        }
+        const payload = data as ReferralTree | null;
+        setVip(Number(payload?.inviter_vip ?? 0));
+        setTeam(
+          (payload?.members ?? []).map((m) => ({
+            name: m.member_id ?? "CAS member",
+            joined: m.joined ?? new Date().toISOString(),
+            status: m.status === "Active" ? "Active" : "Pending",
+            level: (m.level === 2 ? 2 : m.level === 3 ? 3 : 1) as ReferralLevel,
+            vip: Number(m.vip ?? 0),
+            applianceId: "",
+            packagePrice: Number(m.package_price ?? 0),
+            dailyIncome: Number(m.daily_income ?? 0),
+            daysActive: Number(m.days_active ?? 0),
+          })),
+        );
       } catch {
-        // Fall back to the demo code when auth/profiles are unavailable.
+        setLoadError(true);
+      } finally {
+        setLoading(false);
       }
     };
-    void loadCode();
+    void load();
   }, []);
   const link = `${origin}/register?ref=${myCode}`;
   const msg = encodeURIComponent(`Join me on CAS — quality home appliances and rewards: ${link}`);
-  const { team, settings, vip, recruitmentBonus, dailyCommission: teamCommission } = useReferral();
+  const { settings } = useReferral();
+  const teamCommission = teamCommissionTotal(team, settings.dailyCommissionPercentByLevel, vip, rewardRules.packageDurationDays);
+  const recruitmentBonus = recruitmentBonusTotal(team, settings.recruitmentBonusPercent, vip);
 
   const memberCommission = (m: TeamMember) => {
     if (m.status !== "Active" || m.daysActive >= rewardRules.packageDurationDays || !isVipEligible(vip, m.vip)) return 0;
@@ -200,7 +253,13 @@ function Page() {
 
             <div className="divide-y">
               {activeGroup.members.length === 0 ? (
-                <p className="p-6 text-center text-sm text-muted-foreground">No members at this level yet.</p>
+                <p className="p-6 text-center text-sm text-muted-foreground">
+                  {loading
+                    ? "Loading your team…"
+                    : loadError
+                      ? "Team data is temporarily unavailable. Please refresh."
+                      : "No members at this level yet."}
+                </p>
               ) : activeGroup.members.map((m) => (
                 <div key={m.name} className="flex items-center gap-3 p-4 transition hover:bg-muted/40">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary"><UserRound className="h-5 w-5" /></span>
