@@ -7,7 +7,6 @@ import { useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { Section } from "@/components/cas/AppShell";
 import { ProductCard } from "@/components/cas/ProductCard";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -57,8 +56,6 @@ function Hero() {
   );
 }
 
-type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
-
 function Home() {
   const packages = useStore((s) => s.packages);
   const [memberId, setMemberId] = useState("CAS Member");
@@ -69,17 +66,6 @@ function Home() {
     { to: "/about", label: "About", icon: Info },
     { to: "/team", label: "Invite", icon: UserPlus },
   ] as const;
-
-  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
-
-  useEffect(() => {
-    const handleInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
-  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -95,19 +81,6 @@ function Home() {
     };
     void loadProfile();
   }, []);
-
-  const installApp = async () => {
-    if (!installPrompt) {
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      toast(isIOS ? "Add CAS to your Home Screen" : "Install CAS", {
-        description: isIOS ? "Tap Share, then choose Add to Home Screen." : "Use your browser menu and choose Install App or Add to Home Screen.",
-      });
-      return;
-    }
-    await installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
-  };
 
   return (
     <div>
@@ -142,10 +115,10 @@ function Home() {
             <span className="text-center text-xs font-semibold leading-tight">{label}</span>
           </Link>
         ))}
-        <button type="button" onClick={installApp} className="press flex flex-col items-center gap-2">
+        <a href="/base.apk" download className="press flex flex-col items-center gap-2">
           <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary text-accent shadow-card"><Download className="h-6 w-6" /></span>
           <span className="text-center text-xs font-semibold leading-tight">App</span>
-        </button>
+        </a>
       </div>
 
       <Section title="Featured Appliances" action={<Link to="/appliances" className="text-sm font-bold text-accent">See all</Link>}>
