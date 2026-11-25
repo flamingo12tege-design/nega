@@ -15,8 +15,15 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("CBE");
   const [account, setAccount] = useState(payoutAccount ?? "");
-  const saveAccount = () => {
+  const saveAccount = async () => {
     if (!/^\d{13}$/.test(account)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
+    // Persist to the profile so the account survives reloads and is available
+    // when the admin processes the withdrawal.
+    const { error } = await supabase.rpc("set_payout_account", { p_account: account });
+    if (error && !/could not find the function|does not exist/i.test(error.message)) {
+      toast.error("Could not save bank account", { description: error.message });
+      return;
+    }
     actions.setPayoutAccount(account);
     toast.success("Bank account saved", { description: "Your CBE account details are attached." });
   };
@@ -40,15 +47,27 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
       const userId = sessionData.session?.user.id;
       if (!userId) { toast.error("Please log in first"); return; }
 
-      const { error } = await supabase.from("wallet_ledger").insert({
-        user_id: userId,
-        amount: -n,
-        type: "withdrawal",
-        status: "pending",
-        description: `CBE withdrawal to ${payoutAccount}`,
+      const { error } = await supabase.rpc("request_withdrawal", {
+        p_amount: n,
+        p_account: payoutAccount,
+        p_method: method,
       });
 
-      if (error) { toast.error("Withdrawal request failed", { description: error.message }); return; }
+      if (error) {
+        // Fallback for databases where REQUEST_WITHDRAWAL.sql has not been run yet.
+        if (!/could not find the function|does not exist/i.test(error.message)) {
+          toast.error("Withdrawal request failed", { description: error.message });
+          return;
+        }
+        const { error: insertError } = await supabase.from("wallet_ledger").insert({
+          user_id: userId,
+          amount: -n,
+          type: "withdrawal",
+          status: "pending",
+          description: `CBE withdrawal to ${payoutAccount}`,
+        });
+        if (insertError) { toast.error("Withdrawal request failed", { description: insertError.message }); return; }
+      }
       navigate({ to: "/withdraw/success", search: { amount: n, account: payoutAccount, method } });
       return;
     }
@@ -108,7 +127,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
         )}
       </div>
       <button className="press w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">{kind}</button>
-      <p className="text-center text-xs text-muted-foreground">{kind === "Withdraw" ? "Only withdrawable funds can be withdrawn. Bonuses are promotional credits." : "Your balance updates after the payment is confirmed."}</p>
+      <p className="text-center text-xs text-muted-foreground">{kind === "Withdraw" ? "Deposits and earned income are both withdrawable — no package purchase is required." : "Your balance updates after the payment is confirmed."}</p>
     </form>
   );
 }

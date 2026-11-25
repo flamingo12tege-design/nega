@@ -121,8 +121,31 @@ function PayoutAccount() {
   const saved = useStore((s) => s.payoutAccount);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(saved);
-  const save = () => {
+
+  // Restore the saved account from Supabase so it is remembered across sessions.
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) return;
+      const { data } = await supabase.from("profiles").select("payout_account").eq("id", userId).maybeSingle();
+      const account = typeof data?.payout_account === "string" ? data.payout_account : "";
+      if (!active || !account) return;
+      actions.setPayoutAccount(account);
+      setValue(account);
+    };
+    void load();
+    return () => { active = false; };
+  }, []);
+
+  const save = async () => {
     if (!/^\d{13}$/.test(value)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
+    const { error } = await supabase.rpc("set_payout_account", { p_account: value });
+    if (error && !/could not find the function|does not exist/i.test(error.message)) {
+      toast.error("Could not save bank account", { description: error.message });
+      return;
+    }
     actions.setPayoutAccount(value);
     setOpen(false);
     toast.success("Bank account saved", { description: "Your CBE account details are attached." });
