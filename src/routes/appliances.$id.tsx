@@ -120,7 +120,7 @@ function Page() {
       />
 
       <Dialog open={insufficientOpen} onOpenChange={setInsufficientOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[425px] gap-4 border bg-background p-6 shadow-lg">
           <DialogHeader>
             <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-warning/20 text-primary"><WalletCards className="h-8 w-8" /></span>
             <DialogTitle className="mt-4 text-center text-2xl font-extrabold text-primary">Insufficient balance</DialogTitle>
@@ -129,7 +129,7 @@ function Page() {
               <span className="font-extrabold text-foreground">{etb(a.price)}</span> to buy this package.
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setInsufficientOpen(false)}

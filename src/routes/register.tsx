@@ -1,7 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BadgeCheck, Copy } from "lucide-react";
 import { normalizeEthiopianPhone } from "@/lib/phone";
 import { AuthLayout, Field, PasswordField, PhoneField } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
@@ -17,7 +16,8 @@ function Page() {
   const [code, setCode] = useState<string | undefined>(ref?.toUpperCase());
   const [f, setF] = useState({ phone: "", pw: "", pw2: "" });
   const [err, setErr] = useState<Record<string, string | undefined>>({});
-  const [memberId, setMemberId] = useState<string | null>(null);
+
+  const navigate = useNavigate();
 
   // Only accept invitation codes that belong to a real registered user.
   useEffect(() => {
@@ -30,20 +30,6 @@ function Page() {
     void validate();
     return () => { active = false; };
   }, [ref]);
-
-  if (memberId) {
-    return (
-      <AuthLayout title="You're in!" subtitle="Welcome to CAS. Your account has been created.">
-        <div className="rounded-3xl bg-primary p-6 text-center text-primary-foreground">
-          <BadgeCheck className="mx-auto h-8 w-8 text-accent" />
-          <p className="mt-2 text-xs uppercase tracking-[0.2em] opacity-70">Your member ID</p>
-          <p className="mt-1 text-3xl font-extrabold tracking-wide">{memberId}</p>
-          <button onClick={() => { navigator.clipboard.writeText(memberId); toast.success("Member ID copied"); }} className="press mt-4 inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-bold text-accent-foreground"><Copy className="h-4 w-4" />Copy</button>
-        </div>
-        <Link to="/" className="press mt-4 block w-full rounded-2xl bg-accent py-4 text-center font-extrabold text-accent-foreground">Start exploring</Link>
-      </AuthLayout>
-    );
-  }
 
   const up = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const submit = async (e: React.FormEvent) => {
@@ -93,7 +79,7 @@ function Page() {
       }
     }
 
-    setMemberId(generatedMemberId);
+    navigate({ to: "/login" });
   };
 
   return (
