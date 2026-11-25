@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
 import { etb } from "@/lib/format";
+import { ocrImage } from "@/lib/ocr-server";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
 import { depositAccount as defaultDepositAccount } from "@/lib/mock-data";
@@ -30,22 +31,15 @@ function Page() {
     setOcrState("scanning");
     try {
       const formData = new FormData();
-      formData.append("apikey", import.meta.env["VITE_OCR_SPACE_API_KEY"] ?? "");
-      formData.append("OCREngine", "8");
-      formData.append("language", "eng");
       formData.append("file", file);
-      const res = await fetch("https://api.ocr.space/ocr", { method: "POST", body: formData });
-      if (!res.ok) throw new Error(`OCR request failed (${res.status})`);
-      const data = await res.json();
-      const text = String(data?.ParsedResults?.[0]?.ParsedText ?? "");
-      const match = text.toUpperCase().match(/FT[A-Z0-9]{5,}/) ?? text.toUpperCase().match(/CHK_[A-Z0-9]+/);
-      if (match) {
-        setTxn(match[0]);
+      const result = await ocrImage({ data: formData });
+      if (result?.ok && result.txn) {
+        setTxn(result.txn);
         setOcrState("found");
-        toast.success("Transaction detected", { description: match[0] });
+        toast.success("Transaction detected", { description: result.txn });
       } else {
         setOcrState("not-found");
-        toast.error("No transaction found", { description: "Couldn't read a transaction reference from that image — type it manually or upload a clearer screenshot." });
+        toast.error("No transaction found", { description: result?.error ?? "Couldn't read a transaction reference from that image — type it manually or upload a clearer screenshot." });
       }
     } catch {
       setOcrState("not-found");
