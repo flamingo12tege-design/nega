@@ -117,12 +117,11 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const tasks = useStore((s) => s.tasks);
   const team = useStore((s) => s.team);
   const referral = useStore((s) => s.referral);
-  const balance = useStore((s) => s.walletBalance);
   const packages = useStore((s) => s.packages);
   const lockedIds = useStore((s) => s.lockedIds);
   const news = useStore((s) => s.news);
   const [members, setMembers] = useState<AdminUser[]>([]);
-  const { vip, recruitmentBonus, dailyCommission: teamCommission } = useReferral();
+  const { recruitmentBonus, dailyCommission: teamCommission } = useReferral();
   const [bonus, setBonus] = useState({
     recruit: referral.recruitmentBonusPercent,
     level1: referral.dailyCommissionPercentByLevel[0],
@@ -343,29 +342,62 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
           {tab === "analytics" && (
             <>
               <section className="space-y-3">
-                <div>
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Overview</p>
-                  <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-primary">Operations snapshot</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Live counters across the referral tree, package approvals and wallet credits.</p>
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Overview</p>
+                    <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-primary">Operations snapshot</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Live counters across deposits, packages and review queues.</p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-[11px] font-bold text-success">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success" /> Live data
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+                {/* Featured money card: the headline number plus member context. */}
+                <div className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-card sm:p-6">
+                  <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
+                  <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-accent">
+                        <ReceiptText className="h-4 w-4" />Total deposits
+                      </p>
+                      <p className="mt-2 break-words text-3xl font-extrabold tracking-tight tabular-nums sm:text-4xl">{etb(depositStats.amount)}</p>
+                      <p className="mt-1 text-xs text-primary-foreground/70">Confirmed recharge volume across all members</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:w-auto sm:min-w-[15rem]">
+                      <div className="rounded-2xl bg-white/10 p-3">
+                        <p className="text-[11px] font-semibold text-primary-foreground/70">Deposited users</p>
+                        <p className="mt-1 text-xl font-extrabold text-accent tabular-nums">{depositStats.users.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-2xl bg-white/10 p-3">
+                        <p className="text-[11px] font-semibold text-primary-foreground/70">Members</p>
+                        <p className="mt-1 text-xl font-extrabold text-accent tabular-nums">{members.length.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actionable queue cards, two-up on phones and four-up on desktop. */}
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   {[
-                    { i: Users, l: "Members", v: members.length.toLocaleString(), s: "Registered accounts" },
-                    { i: Wallet, l: "Deposited users", v: depositStats.users.toLocaleString(), s: "Members with completed deposits" },
-                    { i: ReceiptText, l: "Total deposits", v: etb(depositStats.amount), s: "Confirmed recharge volume" },
-                    { i: ShoppingBag, l: "Active packages", v: activePackages.toLocaleString(), s: "Approved purchases" },
-                    { i: ShoppingBag, l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
-                    { i: BarChart3, l: "Your VIP", v: String(vip), s: "Highest approved VIP" },
-                    { i: Wallet, l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
-                  ].map(({ i: Icon, l, v, s }) => (
-                    <div key={l} className={card}>
+                    { i: ShoppingBag, l: "Active packages", v: activePackages.toLocaleString(), s: "Approved purchases", tint: "bg-tint-green", to: "appliances" as Tab },
+                    { i: Wallet, l: "Pending deposits", v: pendingRecharges.length.toLocaleString(), s: "Awaiting approval", tint: "bg-tint-orange", to: "transactions" as Tab },
+                    { i: ArrowUpRight, l: "Pending withdrawals", v: pendingWithdrawals.length.toLocaleString(), s: "Awaiting approval", tint: "bg-tint-violet", to: "transactions" as Tab },
+                    { i: ReceiptText, l: "Failed verifications", v: verificationLogs.length.toLocaleString(), s: "Recent rejected attempts", tint: "bg-tint-rose", to: "transactions" as Tab },
+                  ].map(({ i: Icon, l, v, s, tint, to }) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => { setTab(to); setSelectedUserId(null); }}
+                      className="press group rounded-2xl bg-card p-4 text-left shadow-card transition-shadow hover:shadow-lift"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-semibold text-muted-foreground">{l}</p>
-                        <span className="rounded-xl bg-secondary px-3 py-2 text-primary"><Icon className="h-4 w-4" /></span>
+                        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-primary ${tint}`}><Icon className="h-4 w-4" /></span>
                       </div>
-                      <p className="mt-2 text-2xl font-extrabold tracking-tight text-primary">{v}</p>
+                      <p className="mt-3 text-2xl font-extrabold tracking-tight text-primary tabular-nums">{v}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">{s}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </section>
