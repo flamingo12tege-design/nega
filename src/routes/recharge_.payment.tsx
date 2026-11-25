@@ -28,11 +28,32 @@ function Page() {
   const [depositAccount, setDepositAccount] = useState<{ name: string; bank: string; account: string } | null>(null);
   const [ocrState, setOcrState] = useState<"idle" | "scanning" | "found" | "not-found">("idle");
 
+  /** OCR.space's free tier rejects files over 1 MB, so downscale big screenshots first. */
+  const compressForOcr = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/") || file.size <= 900_000) return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+      if (!blob) return file;
+      return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.jpg`, { type: "image/jpeg" });
+    } catch {
+      return file;
+    }
+  };
+
   const runOcr = async (file: File) => {
     setOcrState("scanning");
     try {
+      const scanFile = await compressForOcr(file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", scanFile);
       const result = await ocrImage({ data: formData });
       if (result?.ok && result.txn) {
         setTxn(result.txn);
