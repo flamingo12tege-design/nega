@@ -35,6 +35,21 @@ function Page() {
   const [insufficientOpen, setInsufficientOpen] = useState(false);
   const locked = useStore((s) => s.lockedIds.includes(a.id));
   const navigate = useNavigate();
+  const [ownedCount, setOwnedCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) return;
+      const { data } = await supabase.from("purchases").select("id,package_id,status").eq("user_id", userId).eq("package_id", a.id);
+      if (!active) return;
+      setOwnedCount((data ?? []).filter((p) => p.status === "approved").length);
+    };
+    void load();
+    return () => { active = false; };
+  }, [a.id]);
 
   const purchase = async () => {
     if (purchasing) return;
@@ -97,7 +112,10 @@ function Page() {
         {locked ? (
           <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted p-4"><Lock className="h-5 w-5 shrink-0 text-primary" /><div><p className="font-bold">This package is locked</p><p className="text-sm text-muted-foreground">It will open soon. Stay tuned for updates.</p></div></div>
         ) : (
-          <button disabled={purchasing} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
+          <>
+            <p className="mt-6 text-center text-xs font-semibold text-muted-foreground">Package limit · {Math.min(ownedCount, MAX_PURCHASES_PER_PACKAGE)}/{MAX_PURCHASES_PER_PACKAGE}</p>
+            <button disabled={purchasing} onClick={purchase} className={`press mt-3 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
+          </>
         )}
       </div>
       <SuccessModal
