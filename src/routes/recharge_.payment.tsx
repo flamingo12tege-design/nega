@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
 import { etb } from "@/lib/format";
 import { ocrImage } from "@/lib/ocr-server";
+import { verifyCbePayment } from "@/lib/cbe-server";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
 import { depositAccount as defaultDepositAccount } from "@/lib/mock-data";
@@ -114,15 +115,16 @@ function Page() {
     const ledgerId = insertData?.[0]?.id ?? null;
 
     // Verify the CBE payment via the Check API and auto-approve on success.
+    // Runs through the server function so the API key stays server-side and
+    // no CORS restrictions apply to the outbound bank API call.
     // Falls back to admin manual review when no transaction number is provided.
     let autoApproved = false;
     try {
-      const res = await fetch("https://api.check.et/api/v1/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env["VITE_CBE_CHECK_API_KEY"] ?? ""}` },
-        body: JSON.stringify({ bank: "cbe", transaction_number: txn.trim() || undefined, account_number: depositAccount?.account ?? "" }),
+      const verify = await verifyCbePayment({
+        data: { transaction_number: txn.trim() || undefined, account_number: depositAccount?.account ?? "" },
       });
-      if (res.ok) autoApproved = true;
+      autoApproved = verify.ok;
+      if (verify.ok) toast.success("Payment verified — recharge auto-approved");
     } catch {
       autoApproved = false;
     }
