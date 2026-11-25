@@ -27,6 +27,7 @@ function Page() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [depositAccount, setDepositAccount] = useState<{ name: string; bank: string; account: string } | null>(null);
   const [ocrState, setOcrState] = useState<"idle" | "scanning" | "found" | "not-found">("idle");
+  const [submitting, setSubmitting] = useState(false);
 
   /** OCR.space's free tier rejects files over 1 MB, so downscale big screenshots first. */
   const compressForOcr = async (file: File): Promise<File> => {
@@ -100,13 +101,15 @@ function Page() {
     toast.success("Account number copied");
   };
 
-  const submit = async () => {
+  const doSubmit = async () => {
     if (!proofFile && !txn.trim()) { toast.error("Add a screenshot or transaction number"); return; }
 
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) { toast.error("Please log in first"); return; }
 
+    // Upload the screenshot first; no deposit row exists yet, so a rejected
+    // verification never leaves a pending deposit behind.
     let proofUrl: string | null = null;
     if (proofFile) {
       const safeName = proofFile.name.replace(/[^a-zA-Z0-9_.-]/g, "-");
@@ -118,6 +121,49 @@ function Page() {
       proofUrl = path;
     }
 
+    // Verify the CBE payment before creating a deposit. A definitive rejection
+    // stops here; only an unreachable/transient verifier goes to manual review.
+    const reference = txn.trim();
+    let verification: "verified" | "rejected" | "unverifiable" = "unverifiable";
+    let verifyMessage = "";
+
+    if (reference) {
+      try {
+        const result = await verifyCbePayment({
+          data: { transaction_number: reference, account_number: depositAccount?.account ?? "" },
+        });
+        verifyMessage = result.message ?? "";
+        verification = result.ok ? "verified" : result.transient ? "unverifiable" : "rejected";
+      } catch {
+        verification = "unverifiable";
+        verifyMessage = "Could not reach the payment verification service";
+      }
+    }
+
+    const logFailure = async (outcome: "rejected" | "manual_review") => {
+      try {
+        await supabase.rpc("log_deposit_verification_failure", {
+          p_amount: amount,
+          p_transaction_ref: reference || null,
+          p_reason: verifyMessage || (outcome === "rejected" ? "Payment verification failed" : "Verifier unavailable"),
+          p_proof_url: proofUrl,
+          p_outcome: outcome,
+        });
+      } catch {
+        // Logging is best-effort; never block or confuse the member.
+      }
+    };
+
+    if (verification === "rejected") {
+      await logFailure("rejected");
+      toast.error("Payment could not be verified", {
+        description:
+          verifyMessage ||
+          "Check the transaction number and receiving account, then try again.",
+      });
+      return;
+    }
+
     const { data: insertData, error } = await supabase
       .from("wallet_ledger")
       .insert({
@@ -125,7 +171,7 @@ function Page() {
         amount,
         type: "recharge",
         status: "pending",
-        transaction_ref: txn.trim() || null,
+        transaction_ref: reference || null,
         proof_url: proofUrl,
         description: `CBE recharge via ${method}`,
       })
@@ -135,35 +181,36 @@ function Page() {
 
     const ledgerId = insertData?.[0]?.id ?? null;
 
-    // Verify the CBE payment via the Check API and auto-approve on success.
-    // Runs through the server function so the API key stays server-side and
-    // no CORS restrictions apply to the outbound bank API call.
-    // Falls back to admin manual review when no transaction number is provided
-    // or the bank does not confirm the payment.
-    let autoApproved = false;
-    if (txn.trim()) {
-      try {
-        const verify = await verifyCbePayment({
-          data: { transaction_number: txn.trim(), account_number: depositAccount?.account ?? "" },
-        });
-        autoApproved = verify.ok;
-        if (verify.ok) toast.success("Payment verified — recharge auto-approved");
-        else toast.error("Payment could not be verified", { description: verify.message ?? "Sent to admin for manual review." });
-      } catch {
-        autoApproved = false;
-      }
-    }
-
-    if (autoApproved && ledgerId) {
+    if (verification === "verified" && ledgerId) {
       const { error: approveError } = await supabase.rpc("approve_recharge", { p_ledger_id: ledgerId });
       if (!approveError) {
         toast.success("Payment verified — recharge auto-approved");
-        navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: txn.trim() } });
+        navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference } });
         return;
       }
+      toast("Payment verified, awaiting admin approval", { description: approveError.message });
+    } else if (verification === "unverifiable" && reference) {
+      await logFailure("manual_review");
+      toast("Sent for manual review", {
+        description: "We couldn't verify the payment automatically. An admin will check your proof.",
+      });
+    } else if (!reference) {
+      toast("Sent for manual review", {
+        description: "Add a transaction number next time to get instant approval.",
+      });
     }
 
-    navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: txn.trim() } });
+    navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference } });
+  };
+
+  const submit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await doSubmit();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (!depositAccount) return null;
@@ -241,7 +288,7 @@ function Page() {
           </label>
         </div>
 
-        <button onClick={submit} className="press mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Submit proof</button>
+        <button onClick={submit} disabled={submitting} className="press mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground">{submitting ? "Verifying payment…" : "Submit proof"}</button>
         <p className="mt-3 text-center text-xs text-muted-foreground">Your wallet is credited after the payment is verified.</p>
       </div>
     </div>

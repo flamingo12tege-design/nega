@@ -140,6 +140,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [depositStats, setDepositStats] = useState({ users: 0, amount: 0 });
   const [activePackages, setActivePackages] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
+  const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
 
   const loadPendingRecharges = async () => {
     const { data, error } = await supabase
@@ -166,6 +167,23 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (!error) setPendingWithdrawals((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
+  };
+
+  const loadVerificationLogs = async () => {
+    const { data, error } = await supabase
+      .from("deposit_verification_logs")
+      .select("id,user_id,amount,transaction_ref,proof_url,reason,outcome,created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    // The table only exists after DEPOSIT_VERIFICATION_LOG.sql has been run.
+    if (error) return;
+    const rows = (data ?? []).map((row) => ({ ...row, amount: Number(row.amount) || 0, member_id: null }));
+    setVerificationLogs(rows);
+    const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+    if (userIds.length === 0) return;
+    const { data: profiles } = await supabase.from("profiles").select("id,member_id").in("id", userIds);
+    const memberMap = new Map((profiles ?? []).map((p) => [p.id, p.member_id]));
+    setVerificationLogs(rows.map((r) => ({ ...r, member_id: memberMap.get(r.user_id) ?? null })));
   };
 
   const approveRecharge = async (id: string) => {
@@ -285,6 +303,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   useEffect(() => {
     void loadPendingRecharges();
     void loadPendingWithdrawals();
+    void loadVerificationLogs();
   }, []);
 
   return (
@@ -689,6 +708,35 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                       <div className="flex gap-2">
                         <button type="button" onClick={() => void approveRecharge(row.id)} className="rounded-lg bg-success px-3 py-2 text-xs font-bold text-success-foreground">Approve</button>
                         <button type="button" onClick={() => void rejectRecharge(row.id)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-destructive">Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={card}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Failed deposit verifications</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Rejected or unverifiable CBE payments. Rejected attempts are logged here but never added to pending deposits.</p>
+                  </div>
+                  <button type="button" onClick={() => void loadVerificationLogs()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                </div>
+                <div className="mt-3 divide-y">
+                  {verificationLogs.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">No failed deposit verifications logged.</p>
+                  ) : verificationLogs.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2 font-bold">
+                          {etb(row.amount)}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${row.outcome === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/20 text-primary"}`}>
+                            {row.outcome === "rejected" ? "Rejected" : "Manual review"}
+                          </span>
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
+                        {row.reason && <p className="mt-1 text-xs text-muted-foreground">{row.reason}</p>}
+                        {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) setProofPreview({ id: row.id, url: data.signedUrl }); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
                       </div>
                     </div>
                   ))}

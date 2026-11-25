@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, Clock3, PackageOpen, Users, type LucideIcon } from "lucide-react";
 import { rewardRules } from "@/lib/mock-data";
-import { claimStatus, claimedDays, todayKey, totalClaimed } from "@/lib/daily-income";
+import { claimStatus, claimedDays, todayKey, totalClaimed, type DailyClaim } from "@/lib/daily-income";
 import { etb, fmtDate } from "@/lib/format";
 import { actions, useReferral, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -32,11 +32,33 @@ function Page() {
   const [success, setSuccess] = useState<SuccessCard | null>(null);
   const storedPurchases = useStore((s) => s.purchases);
   const [livePurchases, setLivePurchases] = useState<Array<{ id: string; package_id: string; amount: number; status: string; created_at: string }>>([]);
-  const claims = useStore((s) => s.claims);
+  const storedClaims = useStore((s) => s.claims);
+  // Claims persisted in wallet_ledger are the source of truth; the local store
+  // only keeps this session's fallback state.
+  const [liveClaims, setLiveClaims] = useState<DailyClaim[] | null>(null);
+  const claims = liveClaims ?? storedClaims;
+  const [claiming, setClaiming] = useState<string | null>(null);
   const tasks = useStore((s) => s.tasks);
   const allPackages = useStore((s) => s.packages);
   const { dailyCommission, commissionClaimedToday, settings, vip } = useReferral();
   const claimedToday = claims.filter((c) => c.date === todayKey()).length;
+
+  const loadClaims = async (userId: string) => {
+    const { data } = await supabase
+      .from("wallet_ledger")
+      .select("id,amount,created_at,reference_id")
+      .eq("user_id", userId)
+      .eq("type", "daily_income")
+      .order("created_at", { ascending: false });
+    setLiveClaims(
+      (data ?? []).map((row) => ({
+        id: String(row.id),
+        purchaseId: String(row.reference_id ?? ""),
+        date: todayKey(new Date(row.created_at ?? Date.now())),
+        amount: Number(row.amount) || 0,
+      })),
+    );
+  };
 
   useEffect(() => {
     let active = true;
@@ -44,9 +66,25 @@ function Page() {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData.session?.user.id;
       if (!userId) return;
-      const { data } = await supabase.from("purchases").select("id,package_id,amount,status,created_at").eq("user_id", userId).order("created_at", { ascending: false });
+      const [{ data }, { data: claimRows }] = await Promise.all([
+        supabase.from("purchases").select("id,package_id,amount,status,created_at").eq("user_id", userId).order("created_at", { ascending: false }),
+        supabase
+          .from("wallet_ledger")
+          .select("id,amount,created_at,reference_id")
+          .eq("user_id", userId)
+          .eq("type", "daily_income")
+          .order("created_at", { ascending: false }),
+      ]);
       if (!active) return;
       setLivePurchases((data ?? []).map((r) => ({ id: r.id, package_id: r.package_id, amount: Number(r.amount), status: r.status, created_at: r.created_at })));
+      setLiveClaims(
+        (claimRows ?? []).map((row) => ({
+          id: String(row.id),
+          purchaseId: String(row.reference_id ?? ""),
+          date: todayKey(new Date(row.created_at ?? Date.now())),
+          amount: Number(row.amount) || 0,
+        })),
+      );
     };
     void load();
     return () => { active = false; };
@@ -67,26 +105,47 @@ function Page() {
   );
   const claimed = totalClaimed(claims);
 
-  const claim = (id: string, applianceId?: string) => {
-    const result = actions.claimDaily(id, applianceId, "Approved");
-    if (result.ok) {
-      const name = allPackages.find((a) => a.id === applianceId)?.name ?? "Package";
-      setSuccess({
-        title: "Daily income claimed",
-        description: "Added to your withdrawable balance.",
-        rows: [
-          { label: "Package", value: name },
-          { label: "Amount", value: etb(result.amount) },
-          { label: "Date", value: fmtDate(todayKey()) },
-        ],
-      });
-    } else if (result.reason === "already-claimed") {
-      toast("Already claimed today", { description: "Your next daily income unlocks tomorrow." });
-    } else if (result.reason === "completed") {
-      toast("Package completed", { description: "This package has reached its daily income limit." });
-    } else {
-      toast.error("This package is not active yet");
+  const claim = async (id: string, applianceId?: string) => {
+    if (claiming) return;
+    setClaiming(id);
+
+    // Persist the claim first so it shows in wallet history and profile totals.
+    const { data, error } = await supabase.rpc("claim_daily_income", { p_purchase_id: id });
+    setClaiming(null);
+
+    if (error) {
+      const message = error.message ?? "";
+      if (/already claimed/i.test(message)) {
+        toast("Already claimed today", { description: "Your next daily income unlocks tomorrow." });
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session?.user.id) void loadClaims(sessionData.session.user.id);
+      } else if (/package completed/i.test(message)) {
+        toast("Package completed", { description: "This package has reached its daily income limit." });
+      } else if (/not active/i.test(message)) {
+        toast.error("This package is not active yet");
+      } else if (/not found/i.test(message)) {
+        toast.error("Purchase not found", { description: "Refresh the page and try again." });
+      } else {
+        toast.error("Could not claim daily income", { description: message || "Please try again." });
+      }
+      return;
     }
+
+    const amount = Number(data) || 0;
+    const appliance = allPackages.find((a) => a.id === applianceId);
+    setLiveClaims((prev) => [
+      { id: crypto.randomUUID(), purchaseId: id, date: todayKey(), amount },
+      ...(prev ?? []),
+    ]);
+    setSuccess({
+      title: "Daily income claimed",
+      description: "Added to your withdrawable balance.",
+      rows: [
+        { label: "Package", value: appliance?.name ?? "Package" },
+        { label: "Amount", value: etb(amount) },
+        { label: "Date", value: fmtDate(todayKey()) },
+      ],
+    });
   };
 
   const claimTeam = () => {
@@ -161,11 +220,11 @@ function Page() {
                       <p className="text-lg font-extrabold text-primary">+{etb(appliance.dailyPayout)}</p>
                     </div>
                     <button
-                      disabled={status !== "claimable"}
-                      onClick={() => claim(purchase.id, purchase.applianceId)}
+                      disabled={status !== "claimable" || claiming !== null}
+                      onClick={() => void claim(purchase.id, purchase.applianceId)}
                       className="press rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground"
                     >
-                      {status === "claimable" ? "Claim today" : status === "claimed" ? "Claimed today" : "Completed"}
+                      {claiming === purchase.id ? "Claiming..." : status === "claimable" ? "Claim today" : status === "claimed" ? "Claimed today" : "Completed"}
                     </button>
                   </div>
 

@@ -1,6 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 
-export type CbeVerifyResult = { ok: boolean; approved: boolean; message?: string; code?: string };
+/**
+ * `transient` distinguishes "the verifier could not answer" (unreachable,
+ * timeout, service error) from a definitive answer that the payment is invalid.
+ * Only transient failures may fall back to admin manual review.
+ */
+export type CbeVerifyResult = {
+  ok: boolean;
+  approved: boolean;
+  transient: boolean;
+  message?: string;
+  code?: string;
+};
 
 type CbeVerifyResponse = {
   success?: boolean;
@@ -24,37 +35,69 @@ const verifyCbePaymentFn = createServerFn({ method: "POST" }).handler(async ({ d
 
   const apiKey = process.env["CBE_CHECK_API_KEY"] ?? process.env["VITE_CBE_CHECK_API_KEY"] ?? import.meta.env["VITE_CBE_CHECK_API_KEY"] ?? "";
   if (!apiKey) {
-    return { ok: false, approved: false, message: "Payment verification is not configured" };
+    return {
+      ok: false,
+      approved: false,
+      transient: true,
+      message: "Payment verification is not configured",
+    };
   }
-  if (!transactionNumber || !accountNumber) {
-    return { ok: false, approved: false, message: "Add a transaction number before verifying" };
+  if (!transactionNumber) {
+    return {
+      ok: false,
+      approved: false,
+      transient: true,
+      message: "Add a transaction number before verifying",
+    };
+  }
+  if (!accountNumber) {
+    // Without the receiving account we cannot verify — leave it to admin review.
+    return {
+      ok: false,
+      approved: false,
+      transient: true,
+      message: "The deposit account is not configured",
+    };
   }
 
   let json: CbeVerifyResponse = {};
+  let httpStatus = 0;
   try {
     const res = await fetch("https://api.check.et/api/v1/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ bank: "cbe", transaction_number: transactionNumber, account_number: accountNumber }),
     });
+    httpStatus = res.status;
     json = (await res.json().catch(() => ({}))) as CbeVerifyResponse;
   } catch {
-    return { ok: false, approved: false, message: "Could not reach the payment verification service" };
+    return {
+      ok: false,
+      approved: false,
+      transient: true,
+      message: "Could not reach the payment verification service",
+    };
   }
 
   // Only a confirmed, non-duplicate payment counts as verified.
   const verified = json.success === true && json.exists === true && json.duplicate !== true;
+  if (verified) {
+    return { ok: true, approved: true, transient: false, code: json.code, message: "Payment verified" };
+  }
+
+  // The API marks retryable failures; a server error is also retryable.
+  const transient = json.retryable === true || httpStatus >= 500 || Object.keys(json).length === 0;
+
   return {
-    ok: verified,
-    approved: verified,
+    ok: false,
+    approved: false,
+    transient,
     code: json.code,
     message:
       json.message ??
-      (verified
-        ? "Payment verified"
-        : json.duplicate
-          ? "This transaction reference was already used"
-          : "No CBE payment found for that reference and receiving account"),
+      (json.duplicate
+        ? "This transaction reference was already used"
+        : "No CBE payment found for that reference and receiving account"),
   };
 });
 

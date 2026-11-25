@@ -36,6 +36,7 @@ function Page() {
   const locked = useStore((s) => s.lockedIds.includes(a.id));
   const navigate = useNavigate();
   const [ownedCount, setOwnedCount] = useState(0);
+  const limitReached = ownedCount >= MAX_PURCHASES_PER_PACKAGE;
 
   useEffect(() => {
     let active = true;
@@ -87,6 +88,7 @@ function Page() {
     }
 
     setSuccessOpen(true);
+    setOwnedCount((count) => count + 1);
   };
 
   return (
@@ -113,6 +115,13 @@ function Page() {
 
         {locked ? (
           <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted p-4"><Lock className="h-5 w-5 shrink-0 text-primary" /><div><p className="font-bold">This package is locked</p><p className="text-sm text-muted-foreground">It will open soon. Stay tuned for updates.</p></div></div>
+        ) : limitReached ? (
+          <div className="mt-6">
+            <button type="button" disabled className="w-full cursor-not-allowed rounded-2xl bg-muted py-4 font-extrabold text-muted-foreground">
+              You can only buy this package {MAX_PURCHASES_PER_PACKAGE} times.
+            </button>
+            <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5" />Purchase limit reached</p>
+          </div>
         ) : (
           <button disabled={purchasing} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
         )}
