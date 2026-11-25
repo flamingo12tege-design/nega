@@ -208,14 +208,15 @@ export const actions = {
   setUserStatus: (id: string, status: AdminUser["status"]) =>
     set((s) => ({ ...s, adminUsers: s.adminUsers.map((u) => (u.id === id ? { ...u, status } : u)) })),
   /** Claim today's income for one active package. Returns why a claim was refused. */
-  claimDaily: (purchaseId: string): ClaimResult => {
+  claimDaily: (purchaseId: string, applianceId?: string, status?: Purchase["status"]): ClaimResult => {
     const purchase = state.purchases.find((p) => p.id === purchaseId);
-    const appliance = purchase ? state.packages.find((a) => a.id === purchase.applianceId) : undefined;
-    if (!purchase || purchase.status !== "Approved" || !appliance) return { ok: false, reason: "not-active" };
+    const appliance = purchase ? state.packages.find((a) => a.id === (applianceId ?? purchase.applianceId)) : applianceId ? state.packages.find((a) => a.id === applianceId) : undefined;
+    const purchaseStatus = status ?? purchase?.status;
+    if (!appliance || purchaseStatus !== "Approved") return { ok: false, reason: "not-active" };
     if (state.lockedIds.includes(appliance.id)) return { ok: false, reason: "not-active" };
 
-    const status = claimStatus(state.claims, purchaseId, rewardRules.packageDurationDays);
-    if (status !== "claimable") return { ok: false, reason: status === "claimed" ? "already-claimed" : "completed" };
+    const statusResult = claimStatus(state.claims, purchaseId, rewardRules.packageDurationDays);
+    if (statusResult !== "claimable") return { ok: false, reason: statusResult === "claimed" ? "already-claimed" : "completed" };
 
     const claim: DailyClaim = { id: crypto.randomUUID(), purchaseId, date: todayKey(), amount: appliance.dailyPayout };
     set((s) => ({ ...s, claims: [claim, ...s.claims], walletBalance: s.walletBalance + claim.amount }));
