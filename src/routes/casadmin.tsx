@@ -135,7 +135,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [adjustment, setAdjustment] = useState("");
-  const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
+  const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
 
   const loadPendingRecharges = async () => {
@@ -145,7 +145,14 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       .eq("type", "recharge")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
-    if (!error) setPendingRecharges((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
+    if (error) return;
+    const rows = (data ?? []).map((row) => ({ ...row, amount: Number(row.amount) }));
+    setPendingRecharges(rows.map((r) => ({ ...r, member_id: null })));
+    const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+    if (userIds.length === 0) return;
+    const { data: profiles } = await supabase.from("profiles").select("id,member_id").in("id", userIds);
+    const memberMap = new Map((profiles ?? []).map((p) => [p.id, p.member_id]));
+    setPendingRecharges(rows.map((r) => ({ ...r, member_id: memberMap.get(r.user_id) ?? null })));
   };
 
   const loadPendingWithdrawals = async () => {
@@ -652,7 +659,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                     <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="font-bold">{etb(row.amount)}</p>
-                        <p className="truncate text-xs text-muted-foreground">{row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
+                        <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
                         {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer"); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
                       </div>
                       <div className="flex gap-2">
