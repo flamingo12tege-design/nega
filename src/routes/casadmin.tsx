@@ -137,6 +137,8 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [adjustment, setAdjustment] = useState("");
   const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
   const [proofPreview, setProofPreview] = useState<{ id: string; url: string } | null>(null);
+  const [depositStats, setDepositStats] = useState({ users: 0, amount: 0 });
+  const [activePackages, setActivePackages] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
 
   const loadPendingRecharges = async () => {
@@ -243,8 +245,26 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     );
   };
 
+  const loadOverviewStats = async () => {
+    const [{ data: deposits }, { count }] = await Promise.all([
+      supabase
+        .from("wallet_ledger")
+        .select("user_id,amount,type,status")
+        .in("type", ["deposit", "recharge"])
+        .eq("status", "completed"),
+      supabase.from("purchases").select("id", { count: "exact", head: true }).eq("status", "approved"),
+    ]);
+    const rows = (deposits ?? []).map((row) => ({ user_id: row.user_id, amount: Math.abs(Number(row.amount) || 0) }));
+    setDepositStats({
+      users: new Set(rows.map((row) => row.user_id)).size,
+      amount: rows.reduce((sum, row) => sum + row.amount, 0),
+    });
+    setActivePackages(count ?? 0);
+  };
+
   useEffect(() => {
     void loadMembers();
+    void loadOverviewStats();
   }, []);
 
   useEffect(() => {
@@ -312,6 +332,9 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {[
                     { i: Users, l: "Members", v: members.length.toLocaleString(), s: "Registered accounts" },
+                    { i: Wallet, l: "Deposited users", v: depositStats.users.toLocaleString(), s: "Members with completed deposits" },
+                    { i: ReceiptText, l: "Total deposits", v: etb(depositStats.amount), s: "Confirmed recharge volume" },
+                    { i: ShoppingBag, l: "Active packages", v: activePackages.toLocaleString(), s: "Approved purchases" },
                     { i: ShoppingBag, l: "Package requests", v: String(purchases.length), s: `${pendingPurchases.length} awaiting review` },
                     { i: BarChart3, l: "Your VIP", v: String(vip), s: "Highest approved VIP" },
                     { i: Wallet, l: "Wallet balance", v: etb(balance), s: "Withdrawable credit" },
@@ -662,9 +685,6 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                         <p className="font-bold">{etb(row.amount)}</p>
                         <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
                         {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) setProofPreview({ id: row.id, url: data.signedUrl }); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
-                        {proofPreview?.id === row.id && (
-                          <img src={proofPreview.url} alt="Payment proof preview" className="mt-2 h-24 w-24 rounded-xl object-cover" />
-                        )}
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={() => void approveRecharge(row.id)} className="rounded-lg bg-success px-3 py-2 text-xs font-bold text-success-foreground">Approve</button>
@@ -704,6 +724,28 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
           )}
         </main>
       </div>
+
+      {proofPreview && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Payment proof preview"
+          onClick={() => setProofPreview(null)}
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+        >
+          <div className="relative w-full max-w-lg" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              aria-label="Close preview"
+              onClick={() => setProofPreview(null)}
+              className="press absolute -right-2 -top-2 z-10 grid h-9 w-9 place-items-center rounded-full bg-background text-foreground shadow-card ring-1 ring-border"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <img src={proofPreview.url} alt="Payment proof" className="max-h-[85vh] w-full rounded-2xl bg-card object-contain shadow-card" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
