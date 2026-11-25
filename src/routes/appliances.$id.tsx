@@ -109,13 +109,12 @@ function Page() {
           {a.details.map((d) => <li key={d} className="flex items-center gap-2 text-sm"><Check className="h-4 w-4 text-success" />{d}</li>)}
         </ul>
 
+        <p className="mt-6 text-center text-xs font-semibold text-muted-foreground">Package limit · {Math.min(ownedCount, MAX_PURCHASES_PER_PACKAGE)}/{MAX_PURCHASES_PER_PACKAGE}</p>
+
         {locked ? (
           <div className="mt-6 flex items-center gap-3 rounded-2xl bg-muted p-4"><Lock className="h-5 w-5 shrink-0 text-primary" /><div><p className="font-bold">This package is locked</p><p className="text-sm text-muted-foreground">It will open soon. Stay tuned for updates.</p></div></div>
         ) : (
-          <>
-            <p className="mt-6 text-center text-xs font-semibold text-muted-foreground">Package limit · {Math.min(ownedCount, MAX_PURCHASES_PER_PACKAGE)}/{MAX_PURCHASES_PER_PACKAGE}</p>
-            <button disabled={purchasing} onClick={purchase} className={`press mt-3 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
-          </>
+          <button disabled={purchasing} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
         )}
       </div>
       <SuccessModal
