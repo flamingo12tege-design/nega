@@ -8,12 +8,12 @@ import { rewardRules } from "@/lib/mock-data";
 import { actions, minimumRechargeAmount, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
-const methods = ["CBE Birr"];
+const methods = ["CBE"];
 
 export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Withdraw"; max?: number; payoutAccount?: string }) {
   const navigate = useNavigate();
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("CBE Birr");
+  const [method, setMethod] = useState("CBE");
   const [account, setAccount] = useState(payoutAccount ?? "");
   const saveAccount = () => {
     if (!/^\d{13}$/.test(account)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
@@ -27,7 +27,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   const fee = kind === "Withdraw" ? (n * rewardRules.withdrawalFeePercent) / 100 : 0;
   const quickAmounts = kind === "Withdraw"
     ? [300, 500, 1000, 5000]
-    : Array.from(new Set([minPackageAmount, 500, 1000, 5000].filter((v) => v >= minPackageAmount))).sort((a, b) => a - b);
+    : Array.from(new Set([minPackageAmount, 500, 1000, 2000, 3000, 5000, 10000].filter((v) => v >= minPackageAmount))).sort((a, b) => a - b);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!n || n < minimumAmount) { toast.error(`Minimum ${amountLabel} amount is ${etb(minimumAmount)}`); return; }
@@ -78,7 +78,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
         <div>
           <p className="text-sm font-semibold">Method</p>
           <div className="mt-1 flex gap-2">
-            {methods.map((m) => <button type="button" key={m} onClick={() => setMethod(m)} className={`press flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-semibold ${method === m ? "border-accent bg-accent/10 text-primary" : ""}`}>{m === "CBE Birr" && <img src={cbeLogo} alt="" className="h-5 w-5 object-contain" />}{m}</button>)}
+            {methods.map((m) => <button type="button" key={m} onClick={() => setMethod(m)} className={`press flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-semibold ${method === m ? "border-accent bg-accent/10 text-primary" : ""}`}>{m === "CBE" && <img src={cbeLogo} alt="" className="h-5 w-5 object-contain" />}{m}</button>)}
           </div>
         </div>
         {kind === "Withdraw" && !payoutAccount && (

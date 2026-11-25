@@ -10,7 +10,7 @@ import { depositAccount as defaultDepositAccount } from "@/lib/mock-data";
 export const Route = createFileRoute("/recharge_/payment")({
   validateSearch: (search: Record<string, unknown>) => ({
     amount: Number(search["amount"]) || 0,
-    method: String(search["method"] ?? "CBE Birr"),
+    method: String(search["method"] ?? "CBE"),
   }),
   head: () => ({ meta: [{ title: "Complete payment — CAS" }, { name: "description", content: "Send your recharge amount and submit your payment proof." }, { property: "og:title", content: "Complete payment — CAS" }, { property: "og:description", content: "Send your recharge amount and submit your payment proof." }] }),
   component: Page,

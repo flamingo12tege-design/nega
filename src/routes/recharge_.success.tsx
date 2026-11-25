@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 export const Route = createFileRoute("/recharge_/success")({
   validateSearch: (search: Record<string, unknown>) => ({
     amount: Number(search["amount"]) || 0,
-    method: String(search["method"] ?? "CBE Birr"),
+    method: String(search["method"] ?? "CBE"),
     proof: search["proof"] === true || search["proof"] === "1" || search["proof"] === "true",
     txn: String(search["txn"] ?? ""),
   }),

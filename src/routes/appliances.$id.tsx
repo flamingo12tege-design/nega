@@ -26,7 +26,7 @@ export const Route = createFileRoute("/appliances/$id")({
   component: Page,
 });
 
-const paymentMethod = "CBE Birr";
+const paymentMethod = "CBE";
 
 function Page() {
   const a = Route.useLoaderData();

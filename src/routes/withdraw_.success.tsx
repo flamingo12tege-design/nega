@@ -7,7 +7,7 @@ export const Route = createFileRoute("/withdraw_/success")({
   validateSearch: (search: Record<string, unknown>) => ({
     amount: Number(search["amount"]) || 0,
     account: String(search["account"] ?? ""),
-    method: String(search["method"] ?? "CBE Birr"),
+    method: String(search["method"] ?? "CBE"),
   }),
   head: () => ({ meta: [{ title: "Withdraw request submitted — CAS" }, { name: "description", content: "Your CAS withdrawal request has been submitted for review." }, { property: "og:title", content: "Withdraw request submitted — CAS" }, { property: "og:description", content: "Your CAS withdrawal request has been submitted for review." }] }),
   component: Page,
