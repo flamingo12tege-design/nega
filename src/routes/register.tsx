@@ -41,6 +41,10 @@ function Page() {
     };
     setErr(next);
     if (Object.values(next).some(Boolean)) return;
+    if (!code) {
+      setErr({ ...next, code: "Invitation code is required" });
+      return;
+    }
     const phone = normalizeEthiopianPhone(f.phone);
     if (!phone) return;
 
@@ -88,7 +92,7 @@ function Page() {
         <PhoneField inputMode="tel" placeholder="Enter your mobile number" value={f.phone} onChange={up("phone")} error={err["phone"]} />
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />
-        <Field label="Invitation code" value={code ?? ""} placeholder="No invitation code" readOnly tabIndex={-1} aria-readonly="true" />
+        <Field label="Invitation code" value={code ?? ""} placeholder="No invitation code" readOnly tabIndex={-1} aria-readonly="true" error={err["code"]} />
         <button className="press !mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Create account</button>
         <p className="text-center text-sm">Have an account? <Link to="/login" className="font-semibold text-accent">Log in</Link></p>
       </form>
