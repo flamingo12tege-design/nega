@@ -219,7 +219,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
 
   const loadMembers = async () => {
     const { data, error } = await supabase.rpc("get_admin_members");
-    if (error) return;
+    if (error) { toast.error("Failed to load member directory", { description: error.message }); return; }
     const rows = (Array.isArray(data) ? data : data?.members ?? []) as Array<Record<string, unknown>>;
     const typed = rows.map((row) => ({
       id: String(row["id"] ?? ""),
