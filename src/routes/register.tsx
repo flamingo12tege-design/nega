@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BadgeCheck, Copy } from "lucide-react";
 import { normalizeEthiopianPhone } from "@/lib/phone";
@@ -14,10 +14,22 @@ export const Route = createFileRoute("/register")({
 
 function Page() {
   const { ref } = Route.useSearch();
-  const code = ref?.toUpperCase();
+  const [code, setCode] = useState<string | undefined>(ref?.toUpperCase());
   const [f, setF] = useState({ phone: "", pw: "", pw2: "" });
   const [err, setErr] = useState<Record<string, string | undefined>>({});
   const [memberId, setMemberId] = useState<string | null>(null);
+
+  // Only accept invitation codes that belong to a real registered user.
+  useEffect(() => {
+    if (!ref) return;
+    let active = true;
+    const validate = async () => {
+      const { data } = await supabase.from("profiles").select("referral_code").eq("referral_code", ref.toUpperCase()).maybeSingle();
+      if (active && !data?.referral_code) setCode(undefined);
+    };
+    void validate();
+    return () => { active = false; };
+  }, [ref]);
 
   if (memberId) {
     return (
