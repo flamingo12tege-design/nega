@@ -136,7 +136,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [adjustment, setAdjustment] = useState("");
   const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
-  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [proofPreview, setProofPreview] = useState<{ id: string; url: string } | null>(null);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
 
   const loadPendingRecharges = async () => {
@@ -661,9 +661,9 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                       <div className="min-w-0 flex-1">
                         <p className="font-bold">{etb(row.amount)}</p>
                         <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
-                        {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) setProofPreview(data.signedUrl); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
-                        {proofPreview === row.id && row.proof_url && (
-                          <img src={proofPreview} alt="Payment proof preview" className="mt-2 h-24 w-24 rounded-xl object-cover" />
+                        {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) setProofPreview({ id: row.id, url: data.signedUrl }); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
+                        {proofPreview?.id === row.id && (
+                          <img src={proofPreview.url} alt="Payment proof preview" className="mt-2 h-24 w-24 rounded-xl object-cover" />
                         )}
                       </div>
                       <div className="flex gap-2">

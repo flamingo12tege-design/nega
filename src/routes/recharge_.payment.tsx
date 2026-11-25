@@ -138,16 +138,20 @@ function Page() {
     // Verify the CBE payment via the Check API and auto-approve on success.
     // Runs through the server function so the API key stays server-side and
     // no CORS restrictions apply to the outbound bank API call.
-    // Falls back to admin manual review when no transaction number is provided.
+    // Falls back to admin manual review when no transaction number is provided
+    // or the bank does not confirm the payment.
     let autoApproved = false;
-    try {
-      const verify = await verifyCbePayment({
-        data: { transaction_number: txn.trim() || undefined, account_number: depositAccount?.account ?? "" },
-      });
-      autoApproved = verify.ok;
-      if (verify.ok) toast.success("Payment verified — recharge auto-approved");
-    } catch {
-      autoApproved = false;
+    if (txn.trim()) {
+      try {
+        const verify = await verifyCbePayment({
+          data: { transaction_number: txn.trim(), account_number: depositAccount?.account ?? "" },
+        });
+        autoApproved = verify.ok;
+        if (verify.ok) toast.success("Payment verified — recharge auto-approved");
+        else toast.error("Payment could not be verified", { description: verify.message ?? "Sent to admin for manual review." });
+      } catch {
+        autoApproved = false;
+      }
     }
 
     if (autoApproved && ledgerId) {
