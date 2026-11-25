@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, Copy, Hash, ImageUp } from "lucide-react";
+import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
 import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
@@ -24,6 +24,43 @@ function Page() {
   const [txn, setTxn] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [depositAccount, setDepositAccount] = useState<{ name: string; bank: string; account: string } | null>(null);
+  const [ocrState, setOcrState] = useState<"idle" | "scanning" | "found" | "not-found">("idle");
+
+  const runOcr = async (file: File) => {
+    setOcrState("scanning");
+    try {
+      const formData = new FormData();
+      formData.append("apikey", import.meta.env["VITE_OCR_SPACE_API_KEY"] ?? "");
+      formData.append("OCREngine", "8");
+      formData.append("language", "eng");
+      formData.append("file", file);
+      const res = await fetch("https://api.ocr.space/ocr", { method: "POST", body: formData });
+      if (!res.ok) throw new Error(`OCR request failed (${res.status})`);
+      const data = await res.json();
+      const text = String(data?.ParsedResults?.[0]?.ParsedText ?? "");
+      const match = text.toUpperCase().match(/FT[A-Z0-9]{5,}/) ?? text.toUpperCase().match(/CHK_[A-Z0-9]+/);
+      if (match) {
+        setTxn(match[0]);
+        setOcrState("found");
+        toast.success("Transaction detected", { description: match[0] });
+      } else {
+        setOcrState("not-found");
+        toast.error("No transaction found", { description: "Couldn't read a transaction reference from that image — type it manually or upload a clearer screenshot." });
+      }
+    } catch {
+      setOcrState("not-found");
+      toast.error("OCR scan failed", { description: "Check your connection and try again." });
+    }
+  };
+
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProof(URL.createObjectURL(file));
+    setFileName(file.name);
+    setProofFile(file);
+    void runOcr(file);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -47,14 +84,6 @@ function Page() {
     toast.success("Account number copied");
   };
 
-  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setProof(URL.createObjectURL(file));
-    setFileName(file.name);
-    setProofFile(file);
-  };
-
   const submit = async () => {
     if (!proofFile && !txn.trim()) { toast.error("Add a screenshot or transaction number"); return; }
 
@@ -73,17 +102,46 @@ function Page() {
       proofUrl = path;
     }
 
-    const { error } = await supabase.from("wallet_ledger").insert({
-      user_id: userId,
-      amount,
-      type: "recharge",
-      status: "pending",
-      transaction_ref: txn.trim() || null,
-      proof_url: proofUrl,
-      description: `CBE recharge via ${method}`,
-    });
+    const { data: insertData, error } = await supabase
+      .from("wallet_ledger")
+      .insert({
+        user_id: userId,
+        amount,
+        type: "recharge",
+        status: "pending",
+        transaction_ref: txn.trim() || null,
+        proof_url: proofUrl,
+        description: `CBE recharge via ${method}`,
+      })
+      .select("id");
 
     if (error) { toast.error("Recharge submission failed", { description: error.message }); return; }
+
+    const ledgerId = insertData?.[0]?.id ?? null;
+
+    // Verify the CBE payment via the Check API and auto-approve on success.
+    // Falls back to admin manual review when no transaction number is provided.
+    let autoApproved = false;
+    try {
+      const res = await fetch("https://api.check.et/api/v1/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env["VITE_CBE_CHECK_API_KEY"] ?? ""}` },
+        body: JSON.stringify({ bank: "cbe", transaction_number: txn.trim() || undefined, account_number: depositAccount?.account ?? "" }),
+      });
+      if (res.ok) autoApproved = true;
+    } catch {
+      autoApproved = false;
+    }
+
+    if (autoApproved && ledgerId) {
+      const { error: approveError } = await supabase.rpc("approve_recharge", { p_ledger_id: ledgerId });
+      if (!approveError) {
+        toast.success("Payment verified — recharge auto-approved");
+        navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: txn.trim() } });
+        return;
+      }
+    }
+
     navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: txn.trim() } });
   };
 
@@ -141,6 +199,12 @@ function Page() {
               <span className="text-xs text-muted-foreground">PNG or JPG of your CBE transfer</span>
               <input type="file" accept="image/*" onChange={pick} className="sr-only" />
             </label>
+          )}
+
+          {ocrState === "scanning" && (
+            <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-accent">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning receipt with OCR…
+            </p>
           )}
 
           <div className="my-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
