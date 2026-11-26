@@ -4,11 +4,19 @@ import { toast } from "sonner";
 import { normalizeEthiopianPhone } from "@/lib/phone";
 import { AuthLayout, PasswordField, PhoneField } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
-import { queueWelcome } from "@/lib/welcome";
+import { queueWelcome, clearQueuedWelcome } from "@/lib/welcome";
+import { WelcomeModal } from "@/components/cas/WelcomeModal";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (s: Record<string, unknown>) => ({ ref: typeof s["ref"] === "string" ? s["ref"] : undefined }),
-  head: () => ({ meta: [{ title: "Join CAS" }, { name: "description", content: "Create your CAS account with just your phone number. An invitation link is optional." }, { property: "og:title", content: "Join CAS" }, { property: "og:description", content: "Create your CAS account with just your phone number. An invitation link is optional." }] }),
+  head: () => ({
+    meta: [
+      { title: "Join CAS" },
+      { name: "description", content: "Create your CAS account with just your phone number. An invitation link is optional." },
+      { property: "og:title", content: "Join CAS" },
+      { property: "og:description", content: "Create your CAS account with just your phone number. An invitation link is optional." },
+    ],
+  }),
   component: Page,
 });
 
@@ -17,8 +25,12 @@ function Page() {
   const [code, setCode] = useState<string | undefined>(ref?.toUpperCase());
   const [f, setF] = useState({ phone: "", pw: "", pw2: "" });
   const [err, setErr] = useState<Record<string, string | undefined>>({});
-
   const navigate = useNavigate();
+
+  // State for the welcome modal that appears after successful signup.
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomedCredited, setWelcomeCredited] = useState(false);
+  const [welcomedMemberId, setWelcomeMemberId] = useState<string | undefined>(undefined);
 
   // Invitations are optional. Only use a ?ref= code when it belongs to a real member.
   useEffect(() => {
@@ -79,14 +91,17 @@ function Page() {
         return;
       }
 
-      // Credit the ETB 300 welcome bonus, then queue the announcement at the
-      // root so it survives the auth-guard redirect after signup.
+      // Credit the ETB 300 welcome bonus.
       const { data: bonus, error: bonusError } = await supabase.rpc("claim_registration_bonus");
       const credited = !bonusError && Number(bonus ?? 0) > 0;
       const signedIn = Boolean(data.session);
 
+      // Queue the welcome announcement so it survives a future redirect,
+      // then show it immediately on this page without navigating away.
       queueWelcome({ credited, memberId: generatedMemberId, signedIn });
-      navigate({ to: signedIn ? "/" : "/login", replace: true });
+      setWelcomeCredited(credited);
+      setWelcomeMemberId(generatedMemberId);
+      setShowWelcome(true);
       return;
     }
 
@@ -107,6 +122,16 @@ function Page() {
         <button className="press !mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Create account</button>
         <p className="text-center text-sm">Have an account? <Link to="/login" className="font-semibold text-accent">Log in</Link></p>
       </form>
+
+      {/* Welcome modal that appears after successful registration, without navigating away. */}
+      {showWelcome && (
+        <WelcomeModal
+          credited={welcomedCredited}
+          memberId={welcomedMemberId}
+          onContinue={() => setShowWelcome(false)}
+          continueLabel="Join the channel"
+        />
+      )}
     </AuthLayout>
   );
 }
