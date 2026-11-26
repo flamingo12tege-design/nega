@@ -166,7 +166,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
               placeholder="Your security password"
               className="mt-1 w-full rounded-xl border bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
             />
-            <span className="mt-1 block text-xs text-muted-foreground">Set in Profile → Security Settings. It is required to approve this withdrawal.</span>
+            <span className="mt-1 block text-xs text-muted-foreground">Set in Profile → Security Settings. Forgot it? Reset there with your recovery keywords.</span>
           </label>
         )}
       </div>

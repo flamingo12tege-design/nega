@@ -27,7 +27,7 @@ function Page() {
   const [profile, setProfile] = useState<{ member_id?: string; phone?: string; created_at?: string } | null>(null);
   const [email, setEmail] = useState("");
   const [securityOpen, setSecurityOpen] = useState(false);
-  const { hasPassword, unavailable, refresh: refreshSecurity } = useWithdrawalPasswordStatus();
+  const { hasPassword, hasKeywords, unavailable, refresh: refreshSecurity } = useWithdrawalPasswordStatus();
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -83,7 +83,9 @@ function Page() {
                   ? "Loading…"
                   : hasPassword
                     ? "Withdrawal password is on"
-                    : "Set a withdrawal password"}
+                    : hasKeywords
+                      ? "Recovery keywords are set"
+                      : "Optional — password or keywords"}
             </span>
           </span>
           {hasPassword ? <Check className="h-4 w-4 text-success" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
@@ -104,6 +106,7 @@ function Page() {
         open={securityOpen}
         onClose={() => setSecurityOpen(false)}
         hasPassword={hasPassword}
+        hasKeywords={hasKeywords}
         unavailable={unavailable}
         refresh={refreshSecurity}
       />
