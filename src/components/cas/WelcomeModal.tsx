@@ -95,9 +95,9 @@ export function WelcomeModal({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-bold">Join the official CAS channel</span>
-              <span className="block truncate text-xs text-primary-foreground/70">Announcements, tips and reward updates</span>
+              <span className="block truncate text-xs text-primary-foreground/70">@CAS_Official_Channel03 · Updates and announcements</span>
             </span>
-            <span className="shrink-0 text-xs font-bold text-accent">Open</span>
+            <span className="shrink-0 text-xs font-bold text-accent">Join</span>
           </a>
 
           <ul className="space-y-2">
