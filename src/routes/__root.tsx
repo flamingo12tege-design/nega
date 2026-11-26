@@ -3,16 +3,19 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  useNavigate,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { SearchX, House, LayoutGrid } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/cas/AppShell";
+import { Logo } from "@/components/cas/Logo";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { actions } from "@/lib/store";
@@ -135,8 +138,31 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Pages that do not require a signed-in member. */
+const isPublicPath = (path: string) =>
+  path === "/login" ||
+  path === "/register" ||
+  path.startsWith("/casadmin");
+
+function AuthSplash() {
+  return (
+    <div className="grid min-h-dvh place-items-center bg-surface px-5">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <Logo className="h-10" />
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/20 border-t-primary" aria-hidden="true" />
+        <p className="text-xs font-semibold text-muted-foreground">Checking your session…</p>
+      </div>
+    </div>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const [sessionReady, setSessionReady] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const publicPath = isPublicPath(path);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -144,8 +170,17 @@ function RootComponent() {
     }
 
     const loadSupabase = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      actions.setLoggedIn(Boolean(sessionData.session));
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const signedIn = Boolean(sessionData.session);
+        actions.setLoggedIn(signedIn);
+        setHasSession(signedIn);
+      } catch {
+        actions.setLoggedIn(false);
+        setHasSession(false);
+      } finally {
+        setSessionReady(true);
+      }
 
       const { data, error } = await supabase
         .from("packages")
@@ -172,18 +207,38 @@ function RootComponent() {
     void loadSupabase();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      actions.setLoggedIn(Boolean(session));
+      const signedIn = Boolean(session);
+      actions.setLoggedIn(signedIn);
+      setHasSession(signedIn);
+      setSessionReady(true);
     });
 
     return () => authListener.subscription.unsubscribe();
   }, []);
 
+  // URL guards: signed-out visitors are sent to the auth page, signed-in members skip it.
+  useEffect(() => {
+    if (!sessionReady) return;
+    if (!hasSession && !publicPath) {
+      void navigate({ to: "/login", replace: true });
+    } else if (hasSession && (path === "/login" || path === "/register")) {
+      void navigate({ to: "/", replace: true });
+    }
+  }, [sessionReady, hasSession, publicPath, path, navigate]);
+
+  // Never render protected page content before the session is known (or while redirecting).
+  const showSplash = !sessionReady ? !publicPath : !hasSession && !publicPath;
+
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <AppShell>
-        <Outlet />
-      </AppShell>
+      {showSplash ? (
+        <AuthSplash />
+      ) : (
+        /* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */
+        <AppShell>
+          <Outlet />
+        </AppShell>
+      )}
       <Toaster position="top-center" />
     </QueryClientProvider>
   );
