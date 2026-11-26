@@ -16,10 +16,12 @@ import { SearchX, House, LayoutGrid } from "lucide-react";
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/cas/AppShell";
 import { Logo } from "@/components/cas/Logo";
+import { WelcomeModal } from "@/components/cas/WelcomeModal";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { actions } from "@/lib/store";
 import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-data";
+import { clearQueuedWelcome, getQueuedWelcome, type QueuedWelcome } from "@/lib/welcome";
 
 function NotFoundComponent() {
   return (
@@ -164,6 +166,7 @@ function RootComponent() {
   const navigate = useNavigate();
   const [sessionReady, setSessionReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [welcome, setWelcome] = useState<QueuedWelcome | null>(null);
   const publicPath = isPublicPath(path);
 
   // Strip credentials and bank details that may have been placed in a URL by
@@ -187,6 +190,12 @@ function RootComponent() {
       );
     }
   }, [path]);
+
+  // Show the new-member announcement at the root so the auth-guard redirect
+  // after signup cannot unmount it.
+  useEffect(() => {
+    setWelcome(getQueuedWelcome());
+  }, []);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -264,6 +273,17 @@ function RootComponent() {
         </AppShell>
       )}
       <Toaster position="top-center" />
+      {welcome && (
+        <WelcomeModal
+          credited={welcome.credited}
+          memberId={welcome.memberId}
+          continueLabel={welcome.signedIn ? "Start earning" : "Back to login"}
+          onContinue={() => {
+            clearQueuedWelcome();
+            setWelcome(null);
+          }}
+        />
+      )}
     </QueryClientProvider>
   );
 }
