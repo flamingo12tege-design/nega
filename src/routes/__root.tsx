@@ -191,11 +191,21 @@ function RootComponent() {
     }
   }, [path]);
 
-  // Show the new-member announcement at the root so the auth-guard redirect
-  // after signup cannot unmount it. Re-check on every navigation because the
-  // flag is queued after registration, while the root is already mounted.
+  // Show the new-member announcement as a popup on the homepage only, after
+  // navigation has settled. Re-check on navigation because the flag is queued
+  // after registration, while the root is already mounted.
   useEffect(() => {
-    setWelcome(getQueuedWelcome());
+    if (path !== "/") {
+      setWelcome(null);
+      return;
+    }
+    const queued = getQueuedWelcome();
+    if (!queued) {
+      setWelcome(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setWelcome(queued), 700);
+    return () => window.clearTimeout(timer);
   }, [path]);
 
   useEffect(() => {
