@@ -314,6 +314,8 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [depositStats, setDepositStats] = useState({ users: 0, amount: 0 });
   const [activePackages, setActivePackages] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
+  const [depositHistory, setDepositHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; created_at: string; member_id: string | null }>>([]);
+  const [withdrawalHistory, setWithdrawalHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; created_at: string; member_id: string | null }>>([]);
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -383,6 +385,46 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     if (!error) setPendingWithdrawals((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
   };
 
+  const loadLedgerHistory = async () => {
+    const [deposits, withdrawals] = await Promise.all([
+      supabase
+        .from("wallet_ledger")
+        .select("id,user_id,amount,status,description,created_at")
+        .in("type", ["deposit", "recharge"])
+        .in("status", ["completed", "rejected"])
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("wallet_ledger")
+        .select("id,user_id,amount,status,description,created_at")
+        .eq("type", "withdrawal")
+        .in("status", ["completed", "rejected"])
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+
+    const rows = [...(deposits.data ?? []), ...(withdrawals.data ?? [])];
+    const ids = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+    const { data: profiles } = ids.length
+      ? await supabase.from("profiles").select("id,member_id").in("id", ids)
+      : { data: [] };
+    const memberMap = new Map((profiles ?? []).map((p) => [p.id, p.member_id]));
+
+    const mapRows = (data: typeof rows) =>
+      data.map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        amount: Number(row.amount),
+        status: row.status,
+        description: row.description ?? null,
+        created_at: row.created_at,
+        member_id: memberMap.get(row.user_id) ?? null,
+      }));
+
+    if (!deposits.error) setDepositHistory(mapRows(deposits.data ?? []));
+    if (!withdrawals.error) setWithdrawalHistory(mapRows(withdrawals.data ?? []));
+  };
+
   const loadVerificationLogs = async () => {
     const { data, error } = await supabase
       .from("deposit_verification_logs")
@@ -406,6 +448,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     await logAdmin("deposit.approved", { type: "wallet_ledger", id });
     toast.success("Deposit approved and balance credited");
     await loadPendingRecharges();
+    await loadLedgerHistory();
   };
 
   const rejectRecharge = async (id: string) => {
@@ -414,6 +457,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     await logAdmin("deposit.rejected", { type: "wallet_ledger", id });
     toast("Deposit rejected");
     await loadPendingRecharges();
+    await loadLedgerHistory();
   };
 
   const approveWithdrawal = async (id: string) => {
@@ -422,6 +466,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     await logAdmin("withdrawal.approved", { type: "wallet_ledger", id });
     toast.success("Withdrawal approved and balance updated");
     await loadPendingWithdrawals();
+    await loadLedgerHistory();
   };
 
   const rejectWithdrawal = async (id: string) => {
@@ -430,6 +475,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     await logAdmin("withdrawal.rejected", { type: "wallet_ledger", id });
     toast("Withdrawal rejected");
     await loadPendingWithdrawals();
+    await loadLedgerHistory();
   };
 
   const pendingPurchases = purchases.filter((p) => p.status === "Pending");
@@ -535,6 +581,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   useEffect(() => {
     void loadPendingRecharges();
     void loadPendingWithdrawals();
+    void loadLedgerHistory();
     void loadVerificationLogs();
     void loadAuditLogs();
   }, []);
@@ -955,13 +1002,21 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
 
           {tab === "transactions" && (
             <>
+              <div className="mt-1 flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-tint-orange text-primary"><Wallet className="h-5 w-5" /></span>
+                <div>
+                  <p className="font-bold">Deposits</p>
+                  <p className="text-xs text-muted-foreground">Pending, failed checks and completed credits.</p>
+                </div>
+              </div>
+
               <div className={card}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">Pending deposits</p>
                     <p className="mt-1 text-xs text-muted-foreground">Approve deposits only after verifying payment proof.</p>
                   </div>
-                  <button type="button" onClick={() => void loadPendingRecharges()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                  <button type="button" onClick={() => { void loadPendingRecharges(); void loadLedgerHistory(); }} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
                 </div>
                 <div className="mt-3 divide-y">
                   {pendingRecharges.length === 0 ? (
@@ -1012,8 +1067,48 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
               </div>
 
               <div className={card}>
-                <p className="font-bold">Pending withdrawals</p>
-                <p className="mt-1 text-xs text-muted-foreground">Approve withdrawals only after verifying bank details.</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Deposit history</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Completed and rejected deposits, separate from withdrawals.</p>
+                  </div>
+                  <button type="button" onClick={() => void loadLedgerHistory()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                </div>
+                <div className="mt-3 divide-y">
+                  {depositHistory.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">No deposits recorded yet.</p>
+                  ) : depositHistory.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2 font-bold">
+                          {etb(Math.abs(row.amount))}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${row.status === "completed" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"}`}>
+                            {row.status === "completed" ? "Completed" : "Rejected"}
+                          </span>
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {fmtDate(row.created_at)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-tint-violet text-primary"><ArrowUpRight className="h-5 w-5" /></span>
+                <div>
+                  <p className="font-bold">Withdrawals</p>
+                  <p className="text-xs text-muted-foreground">Pending requests and completed payouts.</p>
+                </div>
+              </div>
+
+              <div className={card}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Pending withdrawals</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Approve withdrawals only after verifying bank details.</p>
+                  </div>
+                  <button type="button" onClick={() => { void loadPendingWithdrawals(); void loadLedgerHistory(); }} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                </div>
                 <div className="mt-3 divide-y">
                   {pendingWithdrawals.length === 0 ? (
                     <p className="py-3 text-sm text-muted-foreground">No withdrawals awaiting approval.</p>
@@ -1033,8 +1128,30 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
               </div>
 
               <div className={card}>
-                <p className="font-bold">Transaction ledger</p>
-                <p className="mt-3 text-sm text-muted-foreground">Approved deposits and withdrawals appear in the two sections above.</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Withdrawal history</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Completed and rejected withdrawals, separate from deposits.</p>
+                  </div>
+                  <button type="button" onClick={() => void loadLedgerHistory()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                </div>
+                <div className="mt-3 divide-y">
+                  {withdrawalHistory.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">No withdrawals recorded yet.</p>
+                  ) : withdrawalHistory.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2 font-bold">
+                          {etb(Math.abs(row.amount))}
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${row.status === "completed" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"}`}>
+                            {row.status === "completed" ? "Completed" : "Rejected"}
+                          </span>
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {row.description || "Withdrawal request"} · {fmtDate(row.created_at)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}
