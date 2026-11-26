@@ -47,6 +47,15 @@ export const appliances: Appliance[] = [
 ];
 export const initialLockedIds = appliances.filter((a) => a.tier >= LOCKED_FROM_TIER).map((a) => a.id);
 
+/** Headline plans for the new-member announcement. Totals use the exact payout, not the rounded daily figure. */
+export const vipPlans = appliances.slice(0, 2).map((a) => ({
+  level: `VIP${a.tier}`,
+  investment: a.price,
+  dailyReturn: Math.round(a.dailyPayout),
+  duration: `${rewardRules.packageDurationDays} Days`,
+  totalReturn: Math.round(a.dailyPayout * rewardRules.packageDurationDays),
+}));
+
 export const depositAccount = { name: "Tegene", bank: "CBE", account: "1000604178669" } as const;
 
 export const heroSlides = [

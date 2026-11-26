@@ -120,14 +120,18 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
       return;
     }
 
-    // Record the successful sign-in with its IP and device. Ignored if the
-    // audit SQL has not been run yet so login still works.
-    await supabase.rpc("log_admin_action", {
-      p_action: "admin.login",
-      p_target_type: "auth",
-      p_target_id: data.user.id,
-      p_metadata: { email },
-    });
+    // Record the successful sign-in with its IP and device. Best effort so
+    // login still works if the audit SQL has not been run yet.
+    try {
+      await supabase.rpc("log_admin_action", {
+        p_action: "admin.login",
+        p_target_type: "auth",
+        p_target_id: data.user.id,
+        p_metadata: { email },
+      });
+    } catch {
+      // Ignore audit transport failures.
+    }
 
     sessionStorage.setItem("cas_admin_authenticated", "true");
     onSuccess(email);
@@ -278,7 +282,11 @@ function AdminRoute() {
 
   const signOut = async () => {
     // Record the sign-out while the admin session still exists.
-    await supabase.rpc("log_admin_action", { p_action: "admin.logout" });
+    try {
+      await supabase.rpc("log_admin_action", { p_action: "admin.logout" });
+    } catch {
+      // Ignore audit transport failures.
+    }
     sessionStorage.removeItem("cas_admin_authenticated");
     await supabase.auth.signOut();
     setAuthenticated(false);
@@ -325,13 +333,19 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     action: string,
     target?: { type?: string; id?: string; memberId?: string | null; metadata?: Record<string, unknown> },
   ) => {
-    await supabase.rpc("log_admin_action", {
-      p_action: action,
-      p_target_type: target?.type ?? null,
-      p_target_id: target?.id ?? null,
-      p_member_id: target?.memberId ?? null,
-      p_metadata: target?.metadata ?? {},
-    });
+    try {
+      // Auditing is best effort: never let a missing table/RPC undo an action
+      // that has already succeeded in the database.
+      await supabase.rpc("log_admin_action", {
+        p_action: action,
+        p_target_type: target?.type ?? null,
+        p_target_id: target?.id ?? null,
+        p_member_id: target?.memberId ?? null,
+        p_metadata: target?.metadata ?? {},
+      });
+    } catch {
+      // Ignore audit transport failures.
+    }
   };
 
   const loadAuditLogs = async () => {

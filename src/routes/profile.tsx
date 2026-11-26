@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { UserRound, ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, Sparkles, PiggyBank, Landmark, Check } from "lucide-react";
-import { fmtDate, etb } from "@/lib/format";
+import { fmtDate, etb, maskAccount } from "@/lib/format";
 import { actions, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
 import { useEffect, useState } from "react";
@@ -185,7 +185,7 @@ function PayoutAccount() {
         <Landmark className="h-5 w-5 text-primary" />
         <span className="flex-1">
           <span className="block text-sm font-semibold">Bank Account Attachment</span>
-          {saved && <span className="block text-xs text-muted-foreground">CBE {saved}</span>}
+          {saved && <span className="block text-xs text-muted-foreground">CBE {maskAccount(saved)}</span>}
         </span>
         {saved ? <Check className="h-4 w-4 text-success" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
       </button>

@@ -281,8 +281,25 @@ begin
   set status = 'completed', amount = -abs(v_row.amount)
   where id = p_ledger_id;
 
-  values (auth.uid(), 'approve_withdrawal', 'wallet_ledger', p_ledger_id::text,
-          jsonb_build_object('amount', abs(v_row.amount), 'user_id', v_row.user_id));
+  -- Best-effort audit. A missing audit table/RPC must never block approval.
+  begin
+    if exists (
+      select 1
+      from pg_proc pr
+      join pg_namespace ns on ns.oid = pr.pronamespace
+      where ns.nspname = 'public' and pr.proname = 'log_admin_action'
+    ) then
+      perform public.log_admin_action(
+        'withdrawal.approved',
+        'wallet_ledger',
+        p_ledger_id::text,
+        null,
+        jsonb_build_object('amount', abs(v_row.amount), 'user_id', v_row.user_id)
+      );
+    end if;
+  exception when others then
+    null;
+  end;
 
   return abs(v_row.amount);
 end;
@@ -309,7 +326,24 @@ begin
     raise exception 'Withdrawal already processed or not found';
   end if;
 
-  values (auth.uid(), 'reject_withdrawal', 'wallet_ledger', p_ledger_id::text, '{}'::jsonb);
+  begin
+    if exists (
+      select 1
+      from pg_proc pr
+      join pg_namespace ns on ns.oid = pr.pronamespace
+      where ns.nspname = 'public' and pr.proname = 'log_admin_action'
+    ) then
+      perform public.log_admin_action(
+        'withdrawal.rejected',
+        'wallet_ledger',
+        p_ledger_id::text,
+        null,
+        '{}'::jsonb
+      );
+    end if;
+  exception when others then
+    null;
+  end;
 end;
 $$;
 

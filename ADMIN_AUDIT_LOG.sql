@@ -83,6 +83,11 @@ begin
     raise exception 'Admin access required';
   end if;
 
+  -- Best effort: auditing must never block the underlying admin action.
+  if to_regclass('public.admin_audit_logs') is null then
+    return null;
+  end if;
+
   select u.email into v_email
   from auth.users u
   where u.id = v_admin;
@@ -154,6 +159,10 @@ begin
       and coalesce(role, 'user') = 'admin'
   ) then
     raise exception 'Admin access required';
+  end if;
+
+  if to_regclass('public.admin_audit_logs') is null then
+    return;
   end if;
 
   return query

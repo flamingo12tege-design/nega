@@ -101,6 +101,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // Sensitive pages must never leak their full URL through the Referer header.
+      { name: "referrer", content: "no-referrer" },
       { name: "theme-color", content: "#092653" },
       { title: "CAS — Home Appliances" },
       { name: "description", content: "CAS: quality home appliances, rewards and referrals." },
@@ -163,6 +165,28 @@ function RootComponent() {
   const [sessionReady, setSessionReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const publicPath = isPublicPath(path);
+
+  // Strip credentials and bank details that may have been placed in a URL by
+  // an old link, a copied screenshot URL or a malicious third party.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sensitive = ["account", "account_number", "bank_account", "password", "pw", "token", "secret", "email", "phone"];
+    let changed = false;
+    for (const key of sensitive) {
+      if (params.has(key)) {
+        params.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      const query = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+      );
+    }
+  }, [path]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {

@@ -3,10 +3,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Check, LockKeyhole } from "lucide-react";
 import cbeLogo from "@/assets/cbe-logo.png";
-import { etb } from "@/lib/format";
+import { etb, maskAccount } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { actions, minimumRechargeAmount, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { saveWithdrawalReceipt } from "@/lib/withdrawal-receipt";
 
 const methods = ["CBE"];
 
@@ -95,7 +96,9 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
         });
         if (insertError) { toast.error("Withdrawal request failed", { description: insertError.message }); return; }
       }
-      navigate({ to: "/withdraw/success", search: { amount: n, account: payoutAccount, method } });
+      // Keep the bank number out of the URL, history and Referer header.
+      saveWithdrawalReceipt({ amount: n, account: payoutAccount, method });
+      navigate({ to: "/withdraw/success", replace: true });
       return;
     }
 
@@ -147,7 +150,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-accent-foreground"><Check className="h-4 w-4" /></span>
             <div className="min-w-0 flex-1">
               <p className="text-xs text-muted-foreground">Withdraw to · {method}</p>
-              <p className="truncate text-sm font-bold">CBE {payoutAccount}</p>
+              <p className="truncate text-sm font-bold">CBE {maskAccount(payoutAccount)}</p>
             </div>
             <Link to="/profile" className="shrink-0 text-xs font-bold text-accent">Manage</Link>
           </div>
