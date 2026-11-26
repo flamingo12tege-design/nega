@@ -6,6 +6,10 @@
 -- rewards, commissions and bonuses), and only that earned income may be
 -- withdrawn. Pending withdrawal requests are reserved.
 
+-- Supabase SQL Editor may be impersonating "authenticated".
+-- Reset to the session owner (session_user = postgres) so DDL is allowed.
+reset role;
+
 -- 1) Eligibility summary used by the app.
 create or replace function public.withdraw_eligibility()
 returns table (
