@@ -8,8 +8,15 @@ export const maskAccount = (account: string) => {
   if (digits.length <= 7) return `${"*".repeat(digits.length - 4)}${digits.slice(-4)}`;
   return `${digits.slice(0, 3)}${"*".repeat(digits.length - 7)}${digits.slice(-4)}`;
 };
+const ADDIS_ABABA_TIMEZONE = "Africa/Addis_Ababa";
+
 export const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: ADDIS_ABABA_TIMEZONE,
+  });
 
 export const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString("en-GB", {
@@ -18,4 +25,5 @@ export const fmtDateTime = (iso: string) =>
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: ADDIS_ABABA_TIMEZONE,
   });

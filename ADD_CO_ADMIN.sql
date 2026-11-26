@@ -3,8 +3,8 @@
 -- created in Supabase Auth. Safe to re-run.
 --
 -- Any authenticated user whose public.profiles.role = 'admin' can sign in to
--- the admin console. This promotes Ake@tegene.com to that role. It does not
--- create the password — create that user in Supabase Auth first.
+-- the admin console. This promotes Ake@tegene.com and tegene@tegene.com.
+-- It does not create passwords — create those users in Supabase Auth first.
 
 insert into public.profiles (id, member_id, phone, role, wallet_balance)
 select
@@ -15,7 +15,7 @@ select
   coalesce(p.wallet_balance, 0)
 from auth.users u
 left join public.profiles p on p.id = u.id
-where lower(u.email) = lower('Ake@tegene.com')
+where lower(u.email) in (lower('Ake@tegene.com'), lower('tegene@tegene.com'))
 on conflict (id) do update set
   role = 'admin',
   member_id = coalesce(public.profiles.member_id, excluded.member_id),
@@ -24,4 +24,4 @@ on conflict (id) do update set
 -- Verify the result:
 -- select u.email, p.role from auth.users u
 -- left join public.profiles p on p.id = u.id
--- where lower(u.email) = lower('Ake@tegene.com');
+-- where lower(u.email) in (lower('Ake@tegene.com'), lower('tegene@tegene.com'));

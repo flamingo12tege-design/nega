@@ -16,6 +16,7 @@ import { Logo } from "@/components/cas/Logo";
 import { StatusPill } from "@/components/cas/StatusPill";
 import { supabase } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/admin-audit";
+import { createCoAdmin, listCoAdmins } from "@/lib/admin-users-server";
 
 export const Route = createFileRoute("/casadmin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — CAS" }, { name: "description", content: "Manage CAS users, appliances, bonuses, tasks and news." }, { property: "og:title", content: "Admin Dashboard — CAS" }, { property: "og:description", content: "Manage CAS users, appliances, bonuses, tasks and news." }] }),
@@ -26,6 +27,7 @@ const tabs = [
   { k: "analytics", l: "Overview", i: BarChart3 }, { k: "users", l: "Users", i: Users }, { k: "appliances", l: "Packages", i: ShoppingBag },
   { k: "bonuses", l: "Bonuses", i: Gift }, { k: "tasks", l: "Tasks", i: ListChecks }, { k: "news", l: "News", i: Newspaper }, { k: "transactions", l: "Ledger", i: ReceiptText },
   { k: "audit", l: "Audit log", i: ScrollText },
+  { k: "admins", l: "Admins", i: ShieldCheck },
 ] as const;
 type Tab = (typeof tabs)[number]["k"];
 
@@ -319,6 +321,11 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [coAdmins, setCoAdmins] = useState<Array<{ id: string; email: string; member_id: string | null }>>([]);
+  const [coAdminEmail, setCoAdminEmail] = useState("");
+  const [coAdminPassword, setCoAdminPassword] = useState("");
+  const [coAdminBusy, setCoAdminBusy] = useState(false);
+  const [coAdminNotice, setCoAdminNotice] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
 
   /** Write an audit entry. Best effort: never block the underlying action. */
@@ -356,6 +363,35 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       metadata: (row["metadata"] && typeof row["metadata"] === "object" ? row["metadata"] : null) as Record<string, unknown> | null,
       created_at: String(row["created_at"] ?? ""),
     })));
+  };
+
+  const loadCoAdmins = async () => {
+    const result = await listCoAdmins();
+    if (result.ok) {
+      setCoAdmins(result.admins);
+      setCoAdminNotice("");
+    } else {
+      setCoAdminNotice(result.message);
+    }
+  };
+
+  const createAdmin = async () => {
+    const email = coAdminEmail.trim();
+    const password = coAdminPassword;
+    if (!email || !password) { toast.error("Enter the co-admin email and password"); return; }
+    setCoAdminBusy(true);
+    const result = await createCoAdmin({ data: { email, password } });
+    setCoAdminBusy(false);
+    if (!result.ok) {
+      toast.error("Could not create co-admin", { description: result.message });
+      setCoAdminNotice(result.message);
+      return;
+    }
+    setCoAdminEmail("");
+    setCoAdminPassword("");
+    await logAdmin("admin.created", { type: "auth", id: result.id ?? "", metadata: { email } });
+    toast.success("Co-admin created", { description: `${email} can now sign in.` });
+    await loadCoAdmins();
   };
 
   const loadPendingRecharges = async () => {
@@ -584,6 +620,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     void loadLedgerHistory();
     void loadVerificationLogs();
     void loadAuditLogs();
+    void loadCoAdmins();
   }, []);
 
   return (
@@ -1231,6 +1268,74 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                         </p>
                       </div>
                       <time dateTime={row.created_at} className="shrink-0 text-[11px] font-semibold text-muted-foreground">{fmtDateTime(row.created_at)}</time>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "admins" && (
+            <>
+              <div className={card}>
+                <div className="flex items-start gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-accent"><ShieldCheck className="h-5 w-5" /></span>
+                  <div className="min-w-0">
+                    <p className="font-bold">Add a co-admin</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Creates a Supabase login with administrator access. Requires the server service key.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs font-semibold">Email</span>
+                    <input
+                      type="email"
+                      value={coAdminEmail}
+                      onChange={(e) => setCoAdminEmail(e.target.value)}
+                      placeholder="co-admin@email.com"
+                      className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold">Password</span>
+                    <input
+                      type="password"
+                      value={coAdminPassword}
+                      onChange={(e) => setCoAdminPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                      className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                    />
+                  </label>
+                </div>
+                {coAdminNotice && <p className="mt-3 rounded-xl bg-warning/15 p-3 text-xs font-semibold text-primary">{coAdminNotice}</p>}
+                <button
+                  type="button"
+                  onClick={() => void createAdmin()}
+                  disabled={coAdminBusy}
+                  className="press mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-accent-foreground disabled:opacity-70"
+                >
+                  <Plus className="h-4 w-4" />{coAdminBusy ? "Creating…" : "Create co-admin"}
+                </button>
+              </div>
+
+              <div className={card}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Current admins</p>
+                    <p className="mt-1 text-xs text-muted-foreground">These accounts can sign in at /casadmin.</p>
+                  </div>
+                  <button type="button" onClick={() => void loadCoAdmins()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
+                </div>
+                <div className="mt-3 divide-y">
+                  {coAdmins.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">No co-admins found.</p>
+                  ) : coAdmins.map((admin) => (
+                    <div key={admin.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold">{admin.email}</p>
+                        <p className="truncate text-xs text-muted-foreground">{admin.member_id || "Admin account"}</p>
+                      </div>
+                      <span className="rounded-full bg-success/15 px-2.5 py-1 text-[11px] font-bold text-success">Admin</span>
                     </div>
                   ))}
                 </div>
