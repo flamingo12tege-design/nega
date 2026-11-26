@@ -5,7 +5,7 @@ import {
   Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3,
   Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
   Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft, LockKeyhole, Eye, EyeOff,
-  ScrollText, ShieldCheck, Globe, Monitor, KeyRound, ArrowRight,
+  ScrollText, ShieldCheck, Globe, Monitor, KeyRound, ArrowRight, LayoutGrid,
 } from "lucide-react";
 import { dailyCommission } from "@/lib/referral";
 import { etb, fmtDate, fmtDateTime } from "@/lib/format";
@@ -318,6 +318,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   /** Write an audit entry. Silently ignored until ADMIN_AUDIT_LOG.sql is run. */
   const logAdmin = async (
@@ -431,6 +432,18 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
 
   const pendingPurchases = purchases.filter((p) => p.status === "Pending");
   const pendingMembers = team.filter((m) => m.status === "Pending");
+
+  // Secondary sections live behind the mobile "More" sheet.
+  const moreTabs = tabs.filter((entry) => entry.k !== "analytics" && entry.k !== "users" && entry.k !== "transactions");
+  const moreActive = moreTabs.some((entry) => entry.k === tab);
+  const ledgerBadge = pendingRecharges.length + pendingWithdrawals.length;
+  const selectTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    setSelectedUserId(null);
+    setMoreOpen(false);
+    if (nextTab === "audit") void loadAuditLogs();
+  };
+
   const addTask = () => {
     const reward = Number(draft.reward);
     if (!draft.title.trim()) { toast.error("Enter a task title"); return; }
@@ -525,7 +538,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   }, []);
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface pb-24 lg:pb-0">
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
@@ -543,11 +556,11 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6">
-        <nav aria-label="Admin sections" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:sticky lg:top-20 lg:mx-0 lg:h-fit lg:flex-col lg:overflow-visible lg:px-0">
+        <nav aria-label="Admin sections" className="hidden lg:sticky lg:top-20 lg:flex lg:h-fit lg:flex-col lg:gap-2">
           {tabs.map(({ k, l, i: Icon }) => (
             <button
               key={k}
-              onClick={() => { setTab(k); setSelectedUserId(null); if (k === "audit") void loadAuditLogs(); }}
+              onClick={() => selectTab(k)}
               className={`press flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "bg-card shadow-card"}`}
             >
               <Icon className="h-4 w-4 shrink-0" />{l}
@@ -1107,6 +1120,90 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
           )}
         </main>
       </div>
+
+      {/* Mobile bottom navigation: the three daily destinations plus a More sheet. */}
+      <nav aria-label="Admin quick navigation" className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-4 px-2">
+          {([
+            { k: "analytics" as Tab, l: "Home", i: BarChart3, badge: 0 },
+            { k: "users" as Tab, l: "Users", i: Users, badge: pendingMembers.length },
+            { k: "transactions" as Tab, l: "Ledger", i: ReceiptText, badge: ledgerBadge },
+          ]).map(({ k, l, i: Icon, badge }) => {
+            const active = tab === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => selectTab(k)}
+                aria-current={active ? "page" : undefined}
+                className="press flex flex-col items-center gap-1 py-2 text-[11px] font-bold"
+              >
+                <span className={`relative grid h-9 w-12 place-items-center rounded-xl transition ${active ? "bg-primary text-primary-foreground shadow-card" : "text-muted-foreground"}`}>
+                  <Icon className="h-5 w-5" />
+                  {badge > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                      {badge > 9 ? "9+" : badge}
+                    </span>
+                  )}
+                </span>
+                <span className={active ? "text-primary" : "text-muted-foreground"}>{l}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-expanded={moreOpen}
+            aria-haspopup="dialog"
+            className="press flex flex-col items-center gap-1 py-2 text-[11px] font-bold"
+          >
+            <span className={`relative grid h-9 w-12 place-items-center rounded-xl transition ${moreActive ? "bg-primary text-primary-foreground shadow-card" : "text-muted-foreground"}`}>
+              <LayoutGrid className="h-5 w-5" />
+              {moreActive && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-accent" />}
+            </span>
+            <span className={moreActive ? "text-primary" : "text-muted-foreground"}>More</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Bottom sheet with the remaining admin sections. */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="More admin sections">
+          <button type="button" aria-label="Close menu" onClick={() => setMoreOpen(false)} className="absolute inset-0 h-full w-full bg-black/40 backdrop-blur-sm" />
+          <div className="rise absolute inset-x-0 bottom-0 rounded-t-3xl bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-lift">
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-border" />
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-extrabold text-primary">More sections</p>
+                <p className="text-[11px] text-muted-foreground">Packages, bonuses, tasks, news and the audit log.</p>
+              </div>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close" className="press grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-primary">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {moreTabs.map(({ k, l, i: Icon }) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => selectTab(k)}
+                  className={`press flex items-center gap-3 rounded-2xl border p-3 text-left ${tab === k ? "border-primary/30 bg-primary/5" : "border-border bg-card"}`}
+                >
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tab === k ? "bg-primary text-primary-foreground" : "bg-secondary text-primary"}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold">{l}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {k === "appliances" ? "Catalogue & requests" : k === "bonuses" ? "Commission rules" : k === "tasks" ? "Bonus tasks" : k === "news" ? "Announcements" : "Admin activity"}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {proofPreview && (
         <div
