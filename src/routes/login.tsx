@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { normalizeEthiopianPhone } from "@/lib/phone";
@@ -47,7 +47,7 @@ function Page() {
           <button type="button" onClick={async () => { const n = normalizeEthiopianPhone(phone); if (!n) { toast.error("Enter your phone number first"); return; } const { error } = await supabase.auth.resetPasswordForEmail(phoneToEmail(n), { redirectTo: `${window.location.origin}/login` }); if (error) toast.error("Reset failed", { description: error.message }); else toast.success("Reset link sent", { description: "Check your email inbox." }); }} className="font-semibold text-accent">Forgot password?</button>
         </div>
         <button className="press w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Log in</button>
-        <p className="text-center text-xs text-muted-foreground">New here? CAS is invitation-only — ask a member for an invite link.</p>
+        <p className="text-center text-xs text-muted-foreground">New here? <Link to="/register" search={{ ref: undefined }} className="font-semibold text-accent">Create an account</Link> — invite links are optional.</p>
       </form>
     </AuthLayout>
   );
