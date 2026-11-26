@@ -61,11 +61,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
       if (!payoutAccount) { toast.error("Save your CBE account before withdrawing"); return; }
       if (needsPassword && !withdrawPassword) { toast.error("Enter your withdrawal password"); return; }
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) { toast.error("Please log in first"); return; }
-
-      const { error } = await supabase.rpc("request_withdrawal", {
+      const { data: requestId, error } = await supabase.rpc("request_withdrawal", {
         p_amount: n,
         p_account: payoutAccount,
         p_method: method,
@@ -73,31 +69,30 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
       });
 
       if (error) {
-        if (/withdrawal password/i.test(error.message)) {
+        const message = error.message;
+        if (/withdrawal password/i.test(message)) {
           toast.error("Incorrect withdrawal password", { description: "Check it in Profile → Security Settings." });
           return;
         }
-        // Fallback for databases where REQUEST_WITHDRAWAL.sql has not been run yet.
-        if (!/could not find the function|does not exist|unexpected argument|unknown function/i.test(error.message)) {
-          toast.error("Withdrawal request failed", { description: error.message });
+        if (/buy a package/i.test(message)) {
+          toast.error("Buy a package first", { description: "Withdrawals unlock from the income your package earns." });
           return;
         }
-        // Never bypass the security password with a direct insert.
-        if (needsPassword) {
-          toast.error("Withdrawal requests need the latest update", { description: "Please contact CAS support for now." });
+        if (/could not find the function|does not exist|unexpected argument|unknown function/i.test(message)) {
+          toast.error("Withdrawals need the latest update", { description: "Please run WITHDRAWAL_ELIGIBILITY.sql in Supabase." });
           return;
         }
-        const { error: insertError } = await supabase.from("wallet_ledger").insert({
-          user_id: userId,
-          amount: -n,
-          type: "withdrawal",
-          status: "pending",
-          description: `CBE withdrawal to ${payoutAccount}`,
-        });
-        if (insertError) { toast.error("Withdrawal request failed", { description: insertError.message }); return; }
+        toast.error("Withdrawal request failed", { description: message });
+        return;
       }
+
       // Keep the bank number out of the URL, history and Referer header.
-      saveWithdrawalReceipt({ amount: n, account: payoutAccount, method });
+      saveWithdrawalReceipt({
+        amount: n,
+        account: payoutAccount,
+        method,
+        reference: String(requestId ?? `WD-${Date.now().toString(36).toUpperCase()}`),
+      });
       navigate({ to: "/withdraw/success", replace: true });
       return;
     }
@@ -106,7 +101,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   };
   return (
     <form onSubmit={submit} className="-mt-4 mx-5 space-y-4 rounded-3xl bg-card p-5 shadow-card">
-      {max !== undefined && <p className="text-sm text-muted-foreground">Withdrawable balance: <span className="font-bold text-primary">{etb(max)}</span></p>}
+      {max !== undefined && <p className="text-sm text-muted-foreground">Withdrawable income: <span className="font-bold text-primary">{etb(max)}</span></p>}
       <label className="block"><span className="text-sm font-semibold">Amount (ETB)</span>
         <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="0" className="mt-1 w-full rounded-xl border bg-surface px-4 py-3 text-xl font-bold outline-none focus:border-accent" />
       </label>

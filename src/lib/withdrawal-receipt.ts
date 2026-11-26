@@ -13,6 +13,7 @@ export type WithdrawalReceipt = {
   amount: number;
   account: string;
   method: string;
+  reference: string;
 };
 
 export function saveWithdrawalReceipt(receipt: WithdrawalReceipt) {
@@ -34,6 +35,7 @@ export function takeWithdrawalReceipt(): WithdrawalReceipt | null {
     const amount = Number(parsed["amount"]);
     const account = String(parsed["account"] ?? "");
     const method = String(parsed["method"] ?? "CBE");
+    const reference = String(parsed["reference"] ?? "");
     const savedAt = Number(parsed["savedAt"]);
 
     // Ignore stale, malformed or injected values.
@@ -41,7 +43,7 @@ export function takeWithdrawalReceipt(): WithdrawalReceipt | null {
     if (!/^\d{13}$/.test(account)) return null;
     if (!Number.isFinite(savedAt) || Date.now() - savedAt > 10 * 60 * 1000) return null;
 
-    return { amount, account, method: method === "CBE" ? method : "CBE" };
+    return { amount, account, method: method === "CBE" ? method : "CBE", reference };
   } catch {
     return null;
   }
