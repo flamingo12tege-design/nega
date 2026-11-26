@@ -191,22 +191,21 @@ function RootComponent() {
     }
   }, [path]);
 
-  // Show the new-member announcement as a popup on the homepage only, after
-  // navigation has settled. Re-check on navigation because the flag is queued
-  // after registration, while the root is already mounted.
-  useEffect(() => {
-    if (path !== "/") {
-      setWelcome(null);
-      return;
-    }
-    const queued = getQueuedWelcome();
-    if (!queued) {
-      setWelcome(null);
-      return;
-    }
-    const timer = window.setTimeout(() => setWelcome(queued), 700);
-    return () => window.clearTimeout(timer);
-  }, [path]);
+  // Show the new-member announcement as a popup on the homepage only.
+// Re-check on navigation because the flag is queued after registration,
+// while the root is already mounted. No timer - show immediately on "/".
+useEffect(() => {
+  if (path !== "/") {
+    setWelcome(null);
+    return;
+  }
+  const queued = getQueuedWelcome();
+  if (!queued) {
+    setWelcome(null);
+    return;
+  }
+  setWelcome(queued);
+}, [path]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {

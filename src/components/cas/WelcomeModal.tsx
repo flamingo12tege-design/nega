@@ -9,6 +9,9 @@ const TELEGRAM_CHANNEL = "https://t.me/CAS_Official_Channel03";
 /**
  * Centered popup shown on the homepage after a new member registers.
  * Focused on the welcome bonus and the official Telegram channel.
+ * Only appears when the path is "/" and a welcome is queued.
+ * Does NOT appear during navigation away and back - only on fresh home load
+ * with a queued welcome message.
  */
 export function WelcomeModal({
   credited,
@@ -36,9 +39,9 @@ export function WelcomeModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-title"
-        className="rise relative max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-card shadow-lift"
+        className="relative rounded-3xl bg-card shadow-lift transform transition-shadow duration-300 hover:shadow-lg max-w-sm w-full"
       >
-        {/* Hero */}
+        {/* Hero */ }
         <div className="relative overflow-hidden bg-primary px-6 pb-14 pt-7 text-center text-primary-foreground">
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.14]"
@@ -71,7 +74,7 @@ export function WelcomeModal({
         </div>
 
         <div className="space-y-4 px-5 pb-5">
-          {/* Bonus card */}
+          {/* Bonus card */ }
           <div className="-mt-9 rounded-2xl border border-accent bg-accent/10 p-5 text-center shadow-card">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary/70">Your welcome bonus</p>
             <p className="mt-1 text-4xl font-extrabold tracking-tight text-primary tabular-nums">{etb(bonus)}</p>
@@ -81,7 +84,7 @@ export function WelcomeModal({
             </p>
           </div>
 
-          {/* Telegram channel */}
+          {/* Telegram channel */ }
           <div className="overflow-hidden rounded-2xl border bg-surface">
             <div className="flex items-center gap-3 border-b px-4 py-3">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#229ED9] text-white">
@@ -97,7 +100,7 @@ export function WelcomeModal({
             </p>
           </div>
 
-          {/* Primary CTA */}
+          {/* Primary CTA */ }
           <a
             href={TELEGRAM_CHANNEL}
             target="_blank"
