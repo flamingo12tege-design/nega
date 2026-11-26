@@ -5,6 +5,10 @@
 -- once. The app calls this right after registration, before it shows the
 -- "Welcome to CAS" popup, so the bonus is really in the member's wallet.
 
+-- Supabase SQL Editor may be impersonating "authenticated".
+-- Reset to the session owner (session_user = postgres) so DDL is allowed.
+reset role;
+
 alter table public.profiles
   add column if not exists registration_bonus_claimed boolean not null default false;
 
@@ -13,7 +17,7 @@ returns numeric
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $bonus$
 declare
   v_user_id uuid := auth.uid();
   v_amount numeric := 300;
@@ -24,13 +28,15 @@ begin
   end if;
 
   -- Lock the profile so a double tap cannot credit the bonus twice.
-  select registration_bonus_claimed into v_claimed
-  from public.profiles
-  where id = v_user_id
-  for update;
+  v_claimed := (
+    select registration_bonus_claimed
+    from public.profiles
+    where id = v_user_id
+    for update
+  );
 
   if v_claimed is null then
-    raise exception 'Profile not found';
+    return 0;
   end if;
 
   if v_claimed then
@@ -50,7 +56,7 @@ begin
 
   return v_amount;
 end;
-$$;
+$bonus$;
 
 revoke all on function public.claim_registration_bonus() from public;
 grant execute on function public.claim_registration_bonus() to authenticated;
