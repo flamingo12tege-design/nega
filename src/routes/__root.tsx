@@ -205,6 +205,7 @@ useEffect(() => {
     return;
   }
   setWelcome(queued);
+  clearQueuedWelcome();
 }, [path]);
 
   useEffect(() => {
