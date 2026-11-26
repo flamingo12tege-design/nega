@@ -201,13 +201,16 @@ function Page() {
     const ledgerId = insertData?.[0]?.id ?? null;
 
     if (verification === "verified" && ledgerId) {
-      const { error: approveError } = await supabase.rpc("approve_recharge", { p_ledger_id: ledgerId });
+      const { error: approveError } = await supabase.rpc("auto_approve_recharge", { p_ledger_id: ledgerId });
       if (!approveError) {
         toast.success("Payment verified — recharge auto-approved");
         navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference } });
         return;
       }
-      toast("Payment verified, awaiting admin approval", { description: approveError.message });
+      const detail = /could not find the function|does not exist/i.test(approveError.message)
+        ? "Run AUTO_APPROVE_RECHARGE.sql in Supabase to enable instant approval."
+        : approveError.message;
+      toast("Payment verified, awaiting admin approval", { description: detail });
     } else if (verification === "unverifiable" && reference) {
       await logFailure("manual_review");
       toast("Sent for manual review", {
