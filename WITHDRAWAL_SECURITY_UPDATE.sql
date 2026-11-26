@@ -6,7 +6,21 @@
 -- keywords, both, or neither. When a password is set it is still required on
 -- withdrawal requests; the keywords can reset it if it is forgotten.
 
--- 1)password_hash becomes nullable so keywords can exist without a password.
+-- 0) Make sure the table exists (safe on projects where the original
+--    WITHDRAWAL_PASSWORD.sql was never run).
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.withdrawal_security (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  password_hash text,
+  keyword_hash text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.withdrawal_security enable row level security;
+
+-- 1) password_hash stays optional so keywords can exist without a password.
 alter table public.withdrawal_security alter column password_hash drop not null;
 alter table public.withdrawal_security add column if not exists keyword_hash text;
 
