@@ -192,10 +192,11 @@ function RootComponent() {
   }, [path]);
 
   // Show the new-member announcement at the root so the auth-guard redirect
-  // after signup cannot unmount it.
+  // after signup cannot unmount it. Re-check on every navigation because the
+  // flag is queued after registration, while the root is already mounted.
   useEffect(() => {
     setWelcome(getQueuedWelcome());
-  }, []);
+  }, [path]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
