@@ -5,9 +5,10 @@ import {
   Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3,
   Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
   Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft, LockKeyhole, Eye, EyeOff,
+  ScrollText, ShieldCheck, Globe, Monitor, KeyRound, ArrowRight,
 } from "lucide-react";
 import { dailyCommission } from "@/lib/referral";
-import { etb, fmtDate } from "@/lib/format";
+import { etb, fmtDate, fmtDateTime } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { actions, useReferral, useStore } from "@/lib/store";
 import type { AdminUser } from "@/lib/mock-data";
@@ -23,19 +24,76 @@ export const Route = createFileRoute("/casadmin")({
 const tabs = [
   { k: "analytics", l: "Overview", i: BarChart3 }, { k: "users", l: "Users", i: Users }, { k: "appliances", l: "Packages", i: ShoppingBag },
   { k: "bonuses", l: "Bonuses", i: Gift }, { k: "tasks", l: "Tasks", i: ListChecks }, { k: "news", l: "News", i: Newspaper }, { k: "transactions", l: "Ledger", i: ReceiptText },
+  { k: "audit", l: "Audit log", i: ScrollText },
 ] as const;
 type Tab = (typeof tabs)[number]["k"];
 
 const card = "rounded-2xl bg-card p-4 shadow-card";
+
+/** Friendly label for a raw audit action such as `deposit.approved`. */
+const auditActionLabel = (action: string) => {
+  const labels: Record<string, string> = {
+    "admin.login": "Signed in",
+    "admin.logout": "Signed out",
+    "deposit.approved": "Approved deposit",
+    "deposit.rejected": "Rejected deposit",
+    "withdrawal.approved": "Approved withdrawal",
+    "withdrawal.rejected": "Rejected withdrawal",
+    "purchase.approved": "Approved package request",
+    "purchase.rejected": "Rejected package request",
+    "package.added": "Added package",
+    "package.removed": "Removed package",
+    "package.locked": "Locked package",
+    "package.unlocked": "Unlocked package",
+    "member.banned": "Banned member",
+    "member.restored": "Restored member",
+    "member.balance_adjusted": "Adjusted member balance",
+    "rules.updated": "Updated commission rules",
+    "task.added": "Added bonus task",
+    "task.approved": "Approved bonus task",
+    "task.removed": "Removed bonus task",
+    "news.published": "Published news",
+    "news.removed": "Removed news",
+  };
+  return labels[action] ?? action.replace(/[._]/g, " ");
+};
+
+/** Colour-coded tone for an audit action badge. */
+const auditActionTone = (action: string) => {
+  if (/approved|login|restored|added|published/.test(action)) return "bg-success/15 text-success";
+  if (/rejected|removed|banned/.test(action)) return "bg-destructive/10 text-destructive";
+  if (/locked|adjusted|rules/.test(action)) return "bg-warning/20 text-primary";
+  return "bg-secondary text-primary";
+};
+
+/** Short, readable device name from a user-agent string. */
+const deviceLabel = (ua: string | null) => {
+  if (!ua) return "Unknown device";
+  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
+  if (/android/i.test(ua)) return "Android";
+  if (/windows/i.test(ua)) return "Windows";
+  if (/mac os|macintosh/i.test(ua)) return "macOS";
+  if (/linux/i.test(ua)) return "Linux";
+  return "Web browser";
+};
+
+const adminSecurityPoints = [
+  { icon: ShieldCheck, title: "Role-protected", text: "Only administrator accounts can open this console." },
+  { icon: Globe, title: "IP address logged", text: "Every action records the source IP and device." },
+  { icon: ScrollText, title: "Full audit trail", text: "Sign-ins, reviews and settings are kept for audit." },
+] as const;
 
 function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
 
     const email = username.trim().toLowerCase();
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -44,6 +102,7 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
     });
 
     if (error || !data.user) {
+      setBusy(false);
       setError("Incorrect email or password.");
       return;
     }
@@ -56,38 +115,152 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
 
     if (profileError || profile?.role !== "admin") {
       await supabase.auth.signOut();
+      setBusy(false);
       setError("This account does not have admin access.");
       return;
     }
+
+    // Record the successful sign-in with its IP and device. Ignored if the
+    // audit SQL has not been run yet so login still works.
+    await supabase.rpc("log_admin_action", {
+      p_action: "admin.login",
+      p_target_type: "auth",
+      p_target_id: data.user.id,
+      p_metadata: { email },
+    });
 
     sessionStorage.setItem("cas_admin_authenticated", "true");
     onSuccess(email);
   };
 
+  const securityPoints = adminSecurityPoints;
+
   return (
-    <div className="grid min-h-screen place-items-center bg-surface px-5">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-card p-6 shadow-card">
-        <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-tint-green text-primary"><LockKeyhole className="h-6 w-6" /></span>
-        <h1 className="mt-4 text-center text-2xl font-extrabold">Admin Sign In</h1>
-        <p className="mt-1 text-center text-sm text-muted-foreground">Restricted CAS operations access</p>
+    <div className="min-h-dvh bg-surface lg:grid lg:grid-cols-[1.05fr_1fr]">
+      {/* Compact brand banner on phones and tablets. */}
+      <div className="relative overflow-hidden bg-primary px-5 pb-12 pt-6 text-primary-foreground sm:px-8 lg:hidden">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "22px 22px" }}
+        />
+        <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-accent/25 blur-3xl" />
+        <div className="relative flex items-center justify-between gap-3">
+          <span className="rounded-xl bg-background/95 px-2.5 py-1.5 shadow-card"><Logo className="h-7" /></span>
+          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]">Restricted</span>
+        </div>
+        <p className="relative mt-6 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">
+          <KeyRound className="h-4 w-4" />Operations console
+        </p>
+        <h1 className="relative mt-1 text-2xl font-extrabold tracking-tight">Admin access</h1>
+      </div>
 
-        <label className="mt-6 block">
-          <span className="text-sm font-semibold">Email</span>
-          <input type="email" value={username} onChange={(e) => { setUsername(e.target.value); setError(""); }} autoComplete="email" className="mt-2 w-full rounded-xl border bg-surface px-4 py-3 outline-none focus:border-accent" placeholder="tegene@tegene.com" />
-        </label>
+      {/* Full security panel on desktop. */}
+      <aside className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:flex lg:flex-col lg:justify-between lg:px-12 lg:py-12">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "22px 22px" }}
+        />
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 -left-16 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
 
-        <label className="mt-4 block">
-          <span className="text-sm font-semibold">Password</span>
-          <div className="mt-2 flex rounded-xl border bg-surface focus-within:border-accent">
-            <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => { setPassword(e.target.value); setError(""); }} autoComplete="current-password" className="min-w-0 flex-1 bg-transparent px-4 py-3 outline-none" placeholder="••••••••" />
-            <button type="button" onClick={() => setShowPassword((v) => !v)} className="px-3 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button>
+        <div className="relative flex items-center justify-between gap-3">
+          <span className="rounded-2xl bg-background/95 px-3 py-2 shadow-card"><Logo className="h-8" /></span>
+          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]">Restricted access</span>
+        </div>
+
+        <div className="relative mt-14">
+          <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-accent">
+            <KeyRound className="h-4 w-4" />Operations console
+          </p>
+          <h1 className="mt-3 max-w-md text-4xl font-extrabold leading-[1.1] tracking-tight">
+            Secure access for the CAS admin team.
+          </h1>
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-primary-foreground/70">
+            Every sign-in and review action is written to the audit trail with the admin email, IP address and device.
+          </p>
+
+          <ul className="mt-7 grid max-w-md gap-3">
+            {securityPoints.map(({ icon: Icon, title, text }) => (
+              <li key={title} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent"><Icon className="h-4 w-4" /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold">{title}</span>
+                  <span className="mt-0.5 block text-xs text-primary-foreground/60">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-xs text-primary-foreground/50">CAS · Authorized personnel only. Activity is monitored.</p>
+      </aside>
+
+      {/* Sign-in form. */}
+      <main className="-mt-6 flex items-center justify-center rounded-t-[2rem] bg-surface px-5 py-10 sm:px-8 lg:mt-0 lg:rounded-none lg:px-12 lg:py-12">
+        <form onSubmit={submit} className="rise w-full max-w-sm">
+          <span className="mx-auto mb-6 block h-1.5 w-12 rounded-full bg-border lg:hidden" />
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Admin sign in</p>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-primary">Welcome back</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Use your administrator email and password.</p>
+
+          <label className="mt-7 block">
+            <span className="text-sm font-semibold">Email address</span>
+            <input
+              type="email"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError(""); }}
+              autoComplete="email"
+              className="mt-2 w-full rounded-xl border bg-background px-4 py-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-ring/30"
+              placeholder="admin@caset.casacam.net"
+            />
+          </label>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-semibold">Password</span>
+            <div className="mt-2 flex rounded-xl border bg-background transition focus-within:border-accent focus-within:ring-2 focus-within:ring-ring/30">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                autoComplete="current-password"
+                className="min-w-0 flex-1 bg-transparent px-4 py-3 text-base outline-none"
+                placeholder="••••••••"
+              />
+              <button type="button" onClick={() => setShowPassword((v) => !v)} className="px-3 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"}>
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+          </label>
+
+          {error && (
+            <p className="mt-4 flex items-start gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm font-semibold text-destructive">
+              <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />{error}
+            </p>
+          )}
+
+          <button
+            disabled={busy}
+            className="press mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground transition disabled:opacity-70"
+          >
+            {busy ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent-foreground/30 border-t-accent-foreground" aria-hidden="true" />
+                Signing in…
+              </>
+            ) : (
+              <>Sign in <ArrowRight className="h-4 w-4" /></>
+            )}
+          </button>
+
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 text-success" />Protected by role-based access
+          </p>
+
+          <div className="mt-6 border-t pt-4 text-center">
+            <Link to="/" className="text-sm font-semibold text-primary hover:text-accent">Back to CAS</Link>
           </div>
-        </label>
-
-        {error && <p className="mt-3 rounded-xl bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">{error}</p>}
-        <button className="press mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Sign In</button>
-        <Link to="/" className="mt-4 block text-center text-sm font-semibold text-primary">Back to CAS</Link>
-      </form>
+        </form>
+      </main>
     </div>
   );
 }
@@ -103,12 +276,15 @@ function AdminRoute() {
 
   if (!authenticated) return <AdminSignIn onSuccess={(email) => { setAdminEmail(email); setAuthenticated(true); }} />;
 
-  const signOut = () => {
+  const signOut = async () => {
+    // Record the sign-out while the admin session still exists.
+    await supabase.rpc("log_admin_action", { p_action: "admin.logout" });
     sessionStorage.removeItem("cas_admin_authenticated");
+    await supabase.auth.signOut();
     setAuthenticated(false);
   };
 
-  return <Page onSignOut={signOut} adminEmail={adminEmail} />;
+  return <Page onSignOut={() => { void signOut(); }} adminEmail={adminEmail} />;
 }
 
 function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: string }) {
@@ -140,6 +316,42 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [activePackages, setActivePackages] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
+  const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  /** Write an audit entry. Silently ignored until ADMIN_AUDIT_LOG.sql is run. */
+  const logAdmin = async (
+    action: string,
+    target?: { type?: string; id?: string; memberId?: string | null; metadata?: Record<string, unknown> },
+  ) => {
+    await supabase.rpc("log_admin_action", {
+      p_action: action,
+      p_target_type: target?.type ?? null,
+      p_target_id: target?.id ?? null,
+      p_member_id: target?.memberId ?? null,
+      p_metadata: target?.metadata ?? {},
+    });
+  };
+
+  const loadAuditLogs = async () => {
+    setAuditLoading(true);
+    const { data, error } = await supabase.rpc("get_admin_audit_logs", { p_limit: 100 });
+    setAuditLoading(false);
+    if (error) return;
+    const rows = (Array.isArray(data) ? data : []) as Array<Record<string, unknown>>;
+    setAuditLogs(rows.map((row) => ({
+      id: String(row["id"] ?? ""),
+      admin_email: row["admin_email"] ? String(row["admin_email"]) : null,
+      action: String(row["action"] ?? "unknown"),
+      target_type: row["target_type"] ? String(row["target_type"]) : null,
+      target_id: row["target_id"] ? String(row["target_id"]) : null,
+      member_id: row["member_id"] ? String(row["member_id"]) : null,
+      ip_address: row["ip_address"] ? String(row["ip_address"]) : null,
+      user_agent: row["user_agent"] ? String(row["user_agent"]) : null,
+      metadata: (row["metadata"] && typeof row["metadata"] === "object" ? row["metadata"] : null) as Record<string, unknown> | null,
+      created_at: String(row["created_at"] ?? ""),
+    })));
+  };
 
   const loadPendingRecharges = async () => {
     const { data, error } = await supabase
@@ -188,6 +400,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const approveRecharge = async (id: string) => {
     const { error } = await supabase.rpc("approve_recharge", { p_ledger_id: id });
     if (error) { toast.error("Could not approve deposit", { description: error.message }); return; }
+    await logAdmin("deposit.approved", { type: "wallet_ledger", id });
     toast.success("Deposit approved and balance credited");
     await loadPendingRecharges();
   };
@@ -195,6 +408,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const rejectRecharge = async (id: string) => {
     const { error } = await supabase.rpc("reject_recharge", { p_ledger_id: id });
     if (error) { toast.error("Could not reject deposit", { description: error.message }); return; }
+    await logAdmin("deposit.rejected", { type: "wallet_ledger", id });
     toast("Deposit rejected");
     await loadPendingRecharges();
   };
@@ -202,6 +416,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const approveWithdrawal = async (id: string) => {
     const { error } = await supabase.rpc("approve_withdrawal", { p_ledger_id: id });
     if (error) { toast.error("Could not approve withdrawal", { description: error.message }); return; }
+    await logAdmin("withdrawal.approved", { type: "wallet_ledger", id });
     toast.success("Withdrawal approved and balance updated");
     await loadPendingWithdrawals();
   };
@@ -209,6 +424,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const rejectWithdrawal = async (id: string) => {
     const { error } = await supabase.rpc("reject_withdrawal", { p_ledger_id: id });
     if (error) { toast.error("Could not reject withdrawal", { description: error.message }); return; }
+    await logAdmin("withdrawal.rejected", { type: "wallet_ledger", id });
     toast("Withdrawal rejected");
     await loadPendingWithdrawals();
   };
@@ -220,11 +436,13 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     if (!draft.title.trim()) { toast.error("Enter a task title"); return; }
     if (!reward) { toast.error("Enter a reward amount"); return; }
     actions.addTask(draft.title.trim(), draft.desc.trim() || "Complete this task to earn a reward.", reward);
+    void logAdmin("task.added", { type: "task", metadata: { title: draft.title.trim(), reward } });
     setDraft({ title: "", desc: "", reward: "" });
     toast.success("Bonus task added");
   };
   const approve = (id: string) => {
     actions.setTask(id, "Completed");
+    void logAdmin("task.approved", { type: "task", id });
     toast.success("Reward approved");
   };
   const preview = [
@@ -303,6 +521,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     void loadPendingRecharges();
     void loadPendingWithdrawals();
     void loadVerificationLogs();
+    void loadAuditLogs();
   }, []);
 
   return (
@@ -328,7 +547,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
           {tabs.map(({ k, l, i: Icon }) => (
             <button
               key={k}
-              onClick={() => { setTab(k); setSelectedUserId(null); }}
+              onClick={() => { setTab(k); setSelectedUserId(null); if (k === "audit") void loadAuditLogs(); }}
               className={`press flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "bg-card shadow-card"}`}
             >
               <Icon className="h-4 w-4 shrink-0" />{l}
@@ -420,7 +639,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   {pendingPurchases.length === 0 ? <p className="mt-1 text-sm text-muted-foreground">Nothing to review.</p> : pendingPurchases.slice(0, 3).map((p) => (
                     <div key={p.id} className="mt-2 flex items-center justify-between gap-2 text-sm">
                       <span className="min-w-0 truncate">{packages.find((a) => a.id === p.applianceId)?.name} · {p.method}</span>
-                      <button onClick={() => { actions.setPurchaseStatus(p.id, "Approved"); toast.success("Purchase approved"); }} className="shrink-0 rounded-lg bg-success px-2 py-1 text-xs font-bold text-success-foreground">Approve</button>
+                      <button onClick={() => { actions.setPurchaseStatus(p.id, "Approved"); void logAdmin("purchase.approved", { type: "purchase", id: p.id }); toast.success("Purchase approved"); }} className="shrink-0 rounded-lg bg-success px-2 py-1 text-xs font-bold text-success-foreground">Approve</button>
                     </div>
                   ))}
                   <p className="mt-4 text-xs font-semibold text-muted-foreground">PENDING MEMBERS · {pendingMembers.length}</p>
@@ -446,7 +665,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                     <p className="text-xs text-muted-foreground">{selectedUser.id} · joined {fmtDate(selectedUser.joined)} · {selectedUser.phone}</p>
                   </div>
                   <button
-                    onClick={() => { const status = selectedUser.status === "Banned" ? "Active" : "Banned"; actions.setUserStatus(selectedUser.id, status); toast.success(`${selectedUser.name} ${status === "Banned" ? "banned" : "restored"}`); }}
+                    onClick={() => { const status = selectedUser.status === "Banned" ? "Active" : "Banned"; actions.setUserStatus(selectedUser.id, status); void logAdmin(status === "Banned" ? "member.banned" : "member.restored", { type: "member", id: selectedUser.id, metadata: { name: selectedUser.name } }); toast.success(`${selectedUser.name} ${status === "Banned" ? "banned" : "restored"}`); }}
                     className={`press flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${selectedUser.status === "Banned" ? "bg-success text-success-foreground" : "bg-secondary text-destructive"}`}
                   >
                     {selectedUser.status === "Banned" ? <RotateCcw className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
@@ -465,8 +684,8 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   <p className="mt-1 text-xs text-muted-foreground">Credits are recorded as deposits; debits as adjustments.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <input inputMode="numeric" value={adjustment} onChange={(e) => setAdjustment(e.target.value.replace(/\D/g, ""))} placeholder="Amount (ETB)" className="min-w-0 flex-1 rounded-xl border bg-surface px-4 py-2.5" />
-                    <button onClick={() => { const amount = Number(adjustment); if (!amount) { toast.error("Enter an amount"); return; } actions.adjustUserBalance(selectedUser.id, amount); setAdjustment(""); toast.success(`${etb(amount)} credited`); }} className="press flex items-center gap-1.5 rounded-xl bg-success px-4 py-2.5 text-sm font-bold text-success-foreground"><ArrowUpRight className="h-4 w-4" />Add</button>
-                    <button onClick={() => { const amount = Number(adjustment); if (!amount) { toast.error("Enter an amount"); return; } actions.adjustUserBalance(selectedUser.id, -amount); setAdjustment(""); toast.success(`${etb(amount)} removed`); }} className="press flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-destructive"><ArrowDownRight className="h-4 w-4" />Remove</button>
+                    <button onClick={() => { const amount = Number(adjustment); if (!amount) { toast.error("Enter an amount"); return; } actions.adjustUserBalance(selectedUser.id, amount); void logAdmin("member.balance_adjusted", { type: "member", id: selectedUser.id, memberId: selectedUser.name, metadata: { amount, direction: "credit" } }); setAdjustment(""); toast.success(`${etb(amount)} credited`); }} className="press flex items-center gap-1.5 rounded-xl bg-success px-4 py-2.5 text-sm font-bold text-success-foreground"><ArrowUpRight className="h-4 w-4" />Add</button>
+                    <button onClick={() => { const amount = Number(adjustment); if (!amount) { toast.error("Enter an amount"); return; } actions.adjustUserBalance(selectedUser.id, -amount); void logAdmin("member.balance_adjusted", { type: "member", id: selectedUser.id, memberId: selectedUser.name, metadata: { amount, direction: "debit" } }); setAdjustment(""); toast.success(`${etb(amount)} removed`); }} className="press flex items-center gap-1.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-destructive"><ArrowDownRight className="h-4 w-4" />Remove</button>
                   </div>
                 </div>
 
@@ -570,6 +789,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 <button
                   onClick={() => {
                     if (!actions.addPackage({ name: packageDraft.name, tier: Number(packageDraft.tier), price: Number(packageDraft.price), dailyPayout: Number(packageDraft.dailyPayout) })) { toast.error("Enter a name, price and daily payout"); return; }
+                    void logAdmin("package.added", { type: "package", metadata: { name: packageDraft.name, tier: Number(packageDraft.tier), price: Number(packageDraft.price), dailyPayout: Number(packageDraft.dailyPayout) } });
                     setPackageDraft({ name: "", tier: "1", price: "", dailyPayout: "" });
                     toast.success("Package added");
                   }}
@@ -592,8 +812,8 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col gap-1">
-                        <button onClick={() => { actions.togglePackageLock(a.id); toast.success(locked ? `${a.name} unlocked` : `${a.name} locked`); }} aria-label={locked ? `Unlock ${a.name}` : `Lock ${a.name}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-primary">{locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}</button>
-                        <button onClick={() => { actions.removePackage(a.id); toast(`${a.name} removed`); }} aria-label={`Remove ${a.name}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                        <button onClick={() => { actions.togglePackageLock(a.id); void logAdmin(locked ? "package.unlocked" : "package.locked", { type: "package", id: a.id, metadata: { name: a.name } }); toast.success(locked ? `${a.name} unlocked` : `${a.name} locked`); }} aria-label={locked ? `Unlock ${a.name}` : `Lock ${a.name}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-primary">{locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}</button>
+                        <button onClick={() => { actions.removePackage(a.id); void logAdmin("package.removed", { type: "package", id: a.id, metadata: { name: a.name } }); toast(`${a.name} removed`); }} aria-label={`Remove ${a.name}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </div>
                   );
@@ -611,8 +831,8 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                         <StatusPill s={p.status} />
                         {p.status === "Pending" && (
                           <>
-                            <button onClick={() => { actions.setPurchaseStatus(p.id, "Approved"); toast.success("Purchase approved"); }} aria-label="Approve purchase" className="grid h-8 w-8 place-items-center rounded-lg bg-success text-success-foreground"><Check className="h-4 w-4" /></button>
-                            <button onClick={() => { actions.setPurchaseStatus(p.id, "Rejected"); toast("Purchase rejected"); }} aria-label="Reject purchase" className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><X className="h-4 w-4" /></button>
+                            <button onClick={() => { actions.setPurchaseStatus(p.id, "Approved"); void logAdmin("purchase.approved", { type: "purchase", id: p.id }); toast.success("Purchase approved"); }} aria-label="Approve purchase" className="grid h-8 w-8 place-items-center rounded-lg bg-success text-success-foreground"><Check className="h-4 w-4" /></button>
+                            <button onClick={() => { actions.setPurchaseStatus(p.id, "Rejected"); void logAdmin("purchase.rejected", { type: "purchase", id: p.id }); toast("Purchase rejected"); }} aria-label="Reject purchase" className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><X className="h-4 w-4" /></button>
                           </>
                         )}
                       </div>
@@ -643,6 +863,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 <button
                   onClick={() => {
                     actions.setReferralRules({ recruitmentBonusPercent: bonus.recruit, dailyCommissionPercentByLevel: [bonus.level1, bonus.level2, bonus.level3] });
+                    void logAdmin("rules.updated", { type: "settings", metadata: { ...bonus } });
                     toast.success("Bonus rules saved");
                   }}
                   className="press mt-4 w-full rounded-xl bg-accent py-3 font-bold text-accent-foreground sm:w-auto sm:px-6"
@@ -683,7 +904,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                     <div className="min-w-0 flex-1"><p className="truncate font-bold">{t.title}</p><p className="text-xs text-muted-foreground">{etb(t.reward)} · {t.status}</p></div>
                     <div className="flex shrink-0 items-center gap-2">
                       {t.status === "Under Review" && <button onClick={() => approve(t.id)} className="rounded-lg bg-success px-3 py-1.5 text-xs font-bold text-success-foreground">Approve</button>}
-                      <button onClick={() => { actions.removeTask(t.id); toast("Task removed"); }} aria-label={`Remove ${t.title}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                      <button onClick={() => { actions.removeTask(t.id); void logAdmin("task.removed", { type: "task", id: t.id, metadata: { title: t.title } }); toast("Task removed"); }} aria-label={`Remove ${t.title}`} className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </div>
                 ))
@@ -702,7 +923,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 </div>
                 <textarea value={newsDraft.body} onChange={(e) => setNewsDraft({ ...newsDraft, body: e.target.value })} placeholder="Article body" rows={3} className="mt-2 w-full rounded-xl border bg-surface px-4 py-2.5" />
                 <button
-                  onClick={() => { if (!actions.addNews(newsDraft)) { toast.error("Enter a title and body"); return; } setNewsDraft({ title: "", tag: "", body: "" }); toast.success("News published"); }}
+                  onClick={() => { if (!actions.addNews(newsDraft)) { toast.error("Enter a title and body"); return; } void logAdmin("news.published", { type: "news", metadata: { title: newsDraft.title } }); setNewsDraft({ title: "", tag: "", body: "" }); toast.success("News published"); }}
                   className="press mt-3 flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground"><Plus className="h-4 w-4" />Publish</button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -710,7 +931,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   <div key={n.id} className={`${card} flex items-start gap-3`}>
                     <img src={n.image} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
                     <div className="min-w-0 flex-1"><p className="truncate font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.tag} · {fmtDate(n.date)}</p></div>
-                    <button onClick={() => { actions.removeNews(n.id); toast("News removed"); }} aria-label={`Remove ${n.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    <button onClick={() => { actions.removeNews(n.id); void logAdmin("news.removed", { type: "news", id: n.id, metadata: { title: n.title } }); toast("News removed"); }} aria-label={`Remove ${n.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 ))}
               </div>
@@ -799,6 +1020,88 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
               <div className={card}>
                 <p className="font-bold">Transaction ledger</p>
                 <p className="mt-3 text-sm text-muted-foreground">Approved deposits and withdrawals appear in the two sections above.</p>
+              </div>
+            </>
+          )}
+
+          {tab === "audit" && (
+            <>
+              <section className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-card sm:p-6">
+                <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-accent/20 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-accent">
+                      <ShieldCheck className="h-4 w-4" />Audit trail
+                    </p>
+                    <h2 className="mt-2 text-2xl font-extrabold tracking-tight">Every admin action, recorded</h2>
+                    <p className="mt-1 max-w-lg text-sm text-primary-foreground/70">
+                      Sign-ins, approvals, rejections and rule changes, with the admin email, IP address and device.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadAuditLogs()}
+                    className="press shrink-0 self-start rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-primary-foreground"
+                  >
+                    {auditLoading ? "Refreshing…" : "Refresh"}
+                  </button>
+                </div>
+                <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    <p className="text-[11px] font-semibold text-primary-foreground/70">Logged events</p>
+                    <p className="mt-1 text-xl font-extrabold text-accent tabular-nums">{auditLogs.length.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    <p className="text-[11px] font-semibold text-primary-foreground/70">Admins seen</p>
+                    <p className="mt-1 text-xl font-extrabold text-accent tabular-nums">
+                      {new Set(auditLogs.map((row) => row.admin_email ?? "unknown")).size.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="col-span-2 rounded-2xl bg-white/10 p-3 sm:col-span-1">
+                    <p className="text-[11px] font-semibold text-primary-foreground/70">Latest activity</p>
+                    <p className="mt-1 truncate text-sm font-bold text-accent">{auditLogs[0] ? fmtDateTime(auditLogs[0].created_at) : "No entries yet"}</p>
+                  </div>
+                </div>
+              </section>
+
+              <div className={card}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 font-bold"><ScrollText className="h-4 w-4 text-accent" />Recent admin activity</p>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-bold text-primary">{auditLogs.length} entries</span>
+                </div>
+                <div className="mt-3 divide-y">
+                  {auditLoading && auditLogs.length === 0 ? (
+                    <div className="space-y-3 py-4">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="space-y-2">
+                          <div className="h-3.5 w-32 animate-pulse rounded-full bg-secondary" />
+                          <div className="h-3 w-56 animate-pulse rounded-full bg-secondary" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : auditLogs.length === 0 ? (
+                    <p className="py-5 text-sm text-muted-foreground">
+                      No admin activity logged yet. Run <span className="font-semibold text-primary">ADMIN_AUDIT_LOG.sql</span> in Supabase, then sign in again.
+                    </p>
+                  ) : auditLogs.map((row) => (
+                    <div key={row.id} className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${auditActionTone(row.action)}`}>{auditActionLabel(row.action)}</span>
+                          <span className="truncate text-xs font-semibold text-foreground">{row.admin_email ?? "Unknown admin"}</span>
+                        </p>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1"><Globe className="h-3 w-3" />{row.ip_address || "Unknown IP"}</span>
+                          <span className="inline-flex items-center gap-1"><Monitor className="h-3 w-3" />{deviceLabel(row.user_agent)}</span>
+                          {row.member_id && <span className="truncate">Member {row.member_id}</span>}
+                          {row.target_type && row.target_id && <span className="truncate">Target {row.target_type} · {row.target_id}</span>}
+                        </p>
+                      </div>
+                      <time dateTime={row.created_at} className="shrink-0 text-[11px] font-semibold text-muted-foreground">{fmtDateTime(row.created_at)}</time>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}
