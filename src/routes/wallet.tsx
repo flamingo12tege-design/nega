@@ -70,12 +70,20 @@ function Page() {
       </Section>
       <Section title="Transaction History">
         <div className="divide-y overflow-hidden rounded-2xl bg-card shadow-card">
-          {history.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3 p-4">
-              <div className="min-w-0"><p className="text-sm font-bold">{t.type}</p><p className="text-xs text-muted-foreground">{fmtDate(t.date)} · {t.status}</p></div>
-              <p className={`shrink-0 font-extrabold ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{t.amount > 0 ? "+" : ""}{etb(t.amount)}</p>
-            </div>
-          ))}
+          {history.map((t) => {
+            const status = t.status === "approved" ? "Approved" : t.status === "rejected" ? "Rejected" : t.status === "pending" ? "Pending" : t.status;
+            const statusColor = t.status === "rejected" ? "text-destructive" : t.status === "approved" ? "text-success" : t.status === "pending" ? "text-warning" : "";
+            const amountColor = t.status === "rejected" || t.amount < 0 ? "text-destructive" : "text-success";
+            return (
+              <div key={t.id} className="flex items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">{t.type}</p>
+                  <p className="text-xs text-muted-foreground">{fmtDate(t.date)} · <span className={`font-bold ${statusColor}`}>{status}</span></p>
+                </div>
+                <p className={`shrink-0 font-extrabold ${amountColor}`}>{t.amount > 0 ? "+" : ""}{etb(t.amount)}</p>
+              </div>
+            );
+          })}
         </div>
       </Section>
     </div>
