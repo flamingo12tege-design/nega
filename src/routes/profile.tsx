@@ -7,6 +7,7 @@ import { Logo } from "@/components/cas/Logo";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
+import { SecuritySettings, useWithdrawalPasswordStatus } from "@/components/cas/SecuritySettings";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — CAS" }, { name: "description", content: "Manage your CAS account, wallet and settings." }, { property: "og:title", content: "Profile — CAS" }, { property: "og:description", content: "Manage your CAS account, wallet and settings." }] }),
@@ -15,18 +16,18 @@ export const Route = createFileRoute("/profile")({
 
 function Page() {
   const nav = useNavigate();
-  const soon = (l: string) => () => toast(l, { description: "This section will be available soon." });
   const items = [
     { l: "Transaction History", i: ReceiptText, to: "/wallet" as const },
     { l: "My Purchases", i: ShoppingBag, to: "/wallet" as const },
     { l: "Referral History", i: Users, to: "/team" as const },
     { l: "Notifications", i: Bell, to: "/notifications" as const },
-    { l: "Security Settings", i: ShieldCheck, on: soon("Security Settings") },
-    { l: "Help and Support", i: LifeBuoy, on: soon("Help and Support") },
+    { l: "Help and Support", i: LifeBuoy, to: "/support" as const },
     { l: "About CAS", i: Info, to: "/about" as const },
   ];
   const [profile, setProfile] = useState<{ member_id?: string; phone?: string; created_at?: string } | null>(null);
   const [email, setEmail] = useState("");
+  const [securityOpen, setSecurityOpen] = useState(false);
+  const { hasPassword, unavailable, refresh: refreshSecurity } = useWithdrawalPasswordStatus();
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -67,17 +68,45 @@ function Page() {
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </Link>
         <PayoutAccount />
-        {items.filter(({ l }) => l !== "Transaction History").map(({ l, i: Icon, to, on }) => {
-          const inner = (<><Icon className="h-5 w-5 text-primary" /><span className="flex-1 text-sm font-semibold">{l}</span><ChevronRight className="h-4 w-4 text-muted-foreground" /></>);
-          return to
-            ? <Link key={l} to={to} className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted">{inner}</Link>
-            : <button key={l} onClick={on} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted">{inner}</button>;
-        })}
+        <button
+          type="button"
+          onClick={() => setSecurityOpen(true)}
+          className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted"
+        >
+          <ShieldCheck className="h-5 w-5 text-primary" />
+          <span className="flex-1">
+            <span className="block text-sm font-semibold">Security Settings</span>
+            <span className="block text-xs text-muted-foreground">
+              {unavailable
+                ? "Not available yet"
+                : hasPassword === null
+                  ? "Loading…"
+                  : hasPassword
+                    ? "Withdrawal password is on"
+                    : "Set a withdrawal password"}
+            </span>
+          </span>
+          {hasPassword ? <Check className="h-4 w-4 text-success" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {items.filter(({ l }) => l !== "Transaction History").map(({ l, i: Icon, to }) => (
+          <Link key={l} to={to} className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted">
+            <Icon className="h-5 w-5 text-primary" />
+            <span className="flex-1 text-sm font-semibold">{l}</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Link>
+        ))}
         <button onClick={async () => { await supabase.auth.signOut(); actions.setLoggedIn(false); nav({ to: "/login" }); }} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-destructive hover:bg-muted">
           <LogOut className="h-5 w-5" /><span className="text-sm font-semibold">Logout</span>
         </button>
       </div>
       <div className="mt-8 flex justify-center"><Logo className="h-8 opacity-60" /></div>
+      <SecuritySettings
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        hasPassword={hasPassword}
+        unavailable={unavailable}
+        refresh={refreshSecurity}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { normalizeEthiopianPhone } from "@/lib/phone";
 import { AuthLayout, Field, PasswordField, PhoneField } from "@/components/cas/AuthUi";
+import { WelcomeModal } from "@/components/cas/WelcomeModal";
 import { supabase, phoneToEmail } from "@/lib/supabase";
 
 export const Route = createFileRoute("/register")({
@@ -16,6 +17,12 @@ function Page() {
   const [code, setCode] = useState<string | undefined>(ref?.toUpperCase());
   const [f, setF] = useState({ phone: "", pw: "", pw2: "" });
   const [err, setErr] = useState<Record<string, string | undefined>>({});
+  const [welcome, setWelcome] = useState<{ open: boolean; credited: boolean; memberId: string; signedIn: boolean }>({
+    open: false,
+    credited: false,
+    memberId: "",
+    signedIn: false,
+  });
 
   const navigate = useNavigate();
 
@@ -81,9 +88,21 @@ function Page() {
         toast.error("Could not save your profile", { description: profileError.message });
         return;
       }
+
+      // Credit the ETB 300 welcome bonus before showing the announcement.
+      const { data: bonus, error: bonusError } = await supabase.rpc("claim_registration_bonus");
+      const credited = !bonusError && Number(bonus ?? 0) > 0;
+
+      setWelcome({ open: true, credited, memberId: generatedMemberId, signedIn: Boolean(data.session) });
+      return;
     }
 
     navigate({ to: "/login" });
+  };
+
+  const closeWelcome = () => {
+    setWelcome((w) => ({ ...w, open: false }));
+    navigate({ to: welcome.signedIn ? "/" : "/login" });
   };
 
   return (
@@ -96,6 +115,15 @@ function Page() {
         <button className="press !mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Create account</button>
         <p className="text-center text-sm">Have an account? <Link to="/login" className="font-semibold text-accent">Log in</Link></p>
       </form>
+
+      {welcome.open && (
+        <WelcomeModal
+          credited={welcome.credited}
+          memberId={welcome.memberId}
+          continueLabel={welcome.signedIn ? "Start earning" : "Continue to log in"}
+          onContinue={closeWelcome}
+        />
+      )}
     </AuthLayout>
   );
 }

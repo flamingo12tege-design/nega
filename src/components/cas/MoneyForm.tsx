@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
+import { Check, LockKeyhole } from "lucide-react";
 import cbeLogo from "@/assets/cbe-logo.png";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
@@ -15,6 +15,22 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("CBE");
   const [account, setAccount] = useState(payoutAccount ?? "");
+  const [withdrawPassword, setWithdrawPassword] = useState("");
+  const [needsPassword, setNeedsPassword] = useState(false);
+
+  // Security setting: when the member set a withdrawal password, it is
+  // required on every withdrawal request.
+  useEffect(() => {
+    if (kind !== "Withdraw") return;
+    let active = true;
+    const load = async () => {
+      const { data, error } = await supabase.rpc("has_withdrawal_password");
+      if (!active || error) return;
+      setNeedsPassword(data === true);
+    };
+    void load();
+    return () => { active = false; };
+  }, [kind]);
   const saveAccount = async () => {
     if (!/^\d{13}$/.test(account)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
     // Persist to the profile so the account survives reloads and is available
@@ -42,6 +58,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
 
     if (kind === "Withdraw") {
       if (!payoutAccount) { toast.error("Save your CBE account before withdrawing"); return; }
+      if (needsPassword && !withdrawPassword) { toast.error("Enter your withdrawal password"); return; }
 
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData.session?.user.id;
@@ -51,12 +68,22 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
         p_amount: n,
         p_account: payoutAccount,
         p_method: method,
+        p_password: needsPassword ? withdrawPassword : null,
       });
 
       if (error) {
+        if (/withdrawal password/i.test(error.message)) {
+          toast.error("Incorrect withdrawal password", { description: "Check it in Profile → Security Settings." });
+          return;
+        }
         // Fallback for databases where REQUEST_WITHDRAWAL.sql has not been run yet.
-        if (!/could not find the function|does not exist/i.test(error.message)) {
+        if (!/could not find the function|does not exist|unexpected argument|unknown function/i.test(error.message)) {
           toast.error("Withdrawal request failed", { description: error.message });
+          return;
+        }
+        // Never bypass the security password with a direct insert.
+        if (needsPassword) {
+          toast.error("Withdrawal requests need the latest update", { description: "Please contact CAS support for now." });
           return;
         }
         const { error: insertError } = await supabase.from("wallet_ledger").insert({
@@ -124,6 +151,20 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
             </div>
             <Link to="/profile" className="shrink-0 text-xs font-bold text-accent">Manage</Link>
           </div>
+        )}
+        {kind === "Withdraw" && needsPassword && (
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-sm font-semibold"><LockKeyhole className="h-4 w-4 text-primary" />Withdrawal password</span>
+            <input
+              type="password"
+              value={withdrawPassword}
+              onChange={(e) => setWithdrawPassword(e.target.value)}
+              autoComplete="off"
+              placeholder="Your security password"
+              className="mt-1 w-full rounded-xl border bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
+            />
+            <span className="mt-1 block text-xs text-muted-foreground">Set in Profile → Security Settings. It is required to approve this withdrawal.</span>
+          </label>
         )}
       </div>
       <button className="press w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">{kind}</button>

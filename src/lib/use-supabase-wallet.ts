@@ -84,7 +84,7 @@ export function useSupabaseWallet() {
 
       const week = startOfWeek();
       const month = startOfMonth();
-      const incomeTypes = new Set(["daily_income", "team_commission", "referral_bonus", "recruitment_bonus", "commission", "pay_income"]);
+      const incomeTypes = new Set(["daily_income", "team_commission", "referral_bonus", "recruitment_bonus", "commission", "pay_income", "registration_bonus"]);
 
       const completedRows = rows.filter((row) => row.status === "completed");
       const incomeRows = completedRows.filter((row) => incomeTypes.has(row.type));
