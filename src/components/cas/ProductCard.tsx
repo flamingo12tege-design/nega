@@ -17,7 +17,7 @@ export function ProductCard({ a }: { a: Appliance }) {
         <h3 className="line-clamp-1 text-sm font-bold">{a.name}</h3>
         <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{a.short}</p>
         <p className="mt-2 text-base font-extrabold text-primary">{etb(a.price)}</p>
-        <p className="mt-1 text-[11px] font-semibold text-muted-foreground">{etb(a.dailyPayout)} daily payout</p>
+        <p className="mt-1 text-[11px] font-semibold text-muted-foreground">{etb(Math.round(a.dailyPayout))} daily payout</p>
         {locked
           ? <span className="mt-2 flex items-center justify-center gap-1 rounded-xl bg-muted py-2 text-xs font-bold text-muted-foreground"><Lock className="h-3 w-3" />Locked</span>
           : <span className="mt-2 rounded-xl bg-accent py-2 text-center text-xs font-bold text-accent-foreground">Buy Now</span>}
