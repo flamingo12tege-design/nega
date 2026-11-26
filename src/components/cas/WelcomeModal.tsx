@@ -2,7 +2,7 @@ import { Gift, Sparkles, CalendarCheck, UserPlus, ArrowUpFromLine, Send, X } fro
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { etb } from "@/lib/format";
-import { rewardRules, vipPlans } from "@/lib/mock-data";
+import { rewardRules } from "@/lib/mock-data";
 
 const TELEGRAM_CHANNEL = "https://t.me/CAS_Official_Channel03";
 
@@ -29,7 +29,7 @@ export function WelcomeModal({
   const highlights = [
     { icon: CalendarCheck, title: "Claim daily income", text: "Collect your package payout every day." },
     { icon: UserPlus, title: "Invite and earn", text: "Get bonuses and commissions from your team." },
-    { icon: ArrowUpFromLine, title: "Withdraw anytime", text: "Your deposits and earnings are withdrawable." },
+    { icon: ArrowUpFromLine, title: "Withdraw your income", text: "Buy a package, earn daily, then withdraw from ETB 300." },
   ];
 
   if (!mounted) return null;
@@ -71,7 +71,7 @@ export function WelcomeModal({
             {memberId ? `Welcome, ${memberId}!` : "Welcome to CAS!"}
           </h2>
           <p className="relative mx-auto mt-1 max-w-xs text-sm text-primary-foreground/75">
-            Your account is ready. Explore appliance packages, earn daily returns and grow your team with CAS.
+            Your account is ready — and we've added a welcome gift to your CAS wallet.
           </p>
         </div>
 
@@ -99,35 +99,6 @@ export function WelcomeModal({
             </span>
             <span className="shrink-0 text-xs font-bold text-accent">Open</span>
           </a>
-
-          <div className="overflow-hidden rounded-2xl border">
-            <div className="border-b bg-surface px-3 py-2">
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-primary">VIP investment plans</p>
-            </div>
-            <table className="w-full border-collapse text-left text-[11px]">
-              <thead className="bg-primary text-primary-foreground">
-                <tr>
-                  <th className="px-2 py-2 font-bold leading-tight">VIP<br />Level</th>
-                  <th className="px-2 py-2 text-right font-bold leading-tight">Investment<br /><span className="font-medium text-primary-foreground/70">(ETB)</span></th>
-                  <th className="px-2 py-2 text-right font-bold leading-tight">Daily<br /><span className="font-medium text-primary-foreground/70">Return (ETB)</span></th>
-                  <th className="px-2 py-2 text-center font-bold leading-tight">Duration</th>
-                  <th className="px-2 py-2 text-right font-bold leading-tight">Total<br /><span className="font-medium text-primary-foreground/70">Return (ETB)</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {vipPlans.map((plan) => (
-                  <tr key={plan.level} className="tabular-nums">
-                    <td className="px-2 py-2 font-extrabold text-primary">{plan.level}</td>
-                    <td className="px-2 py-2 text-right">{etb(plan.investment)}</td>
-                    <td className="px-2 py-2 text-right font-semibold text-success">{etb(plan.dailyReturn)}</td>
-                    <td className="px-2 py-2 text-center text-muted-foreground">{plan.duration}</td>
-                    <td className="px-2 py-2 text-right font-bold">{etb(plan.totalReturn)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="bg-surface px-3 py-2 text-[10px] text-muted-foreground">All amounts in ETB · 45-day payout window</p>
-          </div>
 
           <ul className="space-y-2">
             {highlights.map(({ icon: Icon, title, text }) => (
