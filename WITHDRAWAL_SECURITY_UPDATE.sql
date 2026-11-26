@@ -8,8 +8,8 @@
 
 -- 0) Make sure the table exists (safe on projects where the original
 --    WITHDRAWAL_PASSWORD.sql was never run).
-create schema if not exists extensions;
-create extension if not exists pgcrypto with schema extensions;
+--    pgcrypto is already installed by Supabase in the extensions schema;
+--    hosted SQL Editor cannot create schemas/extensions (42501).
 
 create table if not exists public.withdrawal_security (
   user_id uuid primary key references auth.users (id) on delete cascade,
