@@ -217,7 +217,7 @@ function Page() {
                   <div className="mt-4 flex items-end justify-between gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground">Daily income</p>
-                      <p className="text-lg font-extrabold text-primary">+{etb(appliance.dailyPayout)}</p>
+                      <p className="text-lg font-extrabold text-primary">+{etb(Math.round(appliance.dailyPayout))}</p>
                     </div>
                     <button
                       disabled={status !== "claimable" || claiming !== null}
