@@ -57,7 +57,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $cas$
 declare
   v_admin uuid := auth.uid();
   v_email text;
@@ -116,7 +116,7 @@ begin
 
   return v_id;
 end;
-$$;
+$cas$;
 
 revoke all on function public.log_admin_action(text, text, text, text, jsonb) from public;
 grant execute on function public.log_admin_action(text, text, text, text, jsonb) to authenticated;
@@ -127,7 +127,7 @@ returns numeric
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $cas$
 declare
   v_row public.wallet_ledger%rowtype;
   v_balance numeric;
@@ -183,14 +183,14 @@ begin
 
   raise exception 'Withdrawal already processed or not found';
 end;
-$$;
+$cas$;
 
 create or replace function public.reject_withdrawal(p_ledger_id uuid)
 returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $cas$
 begin
   if not public.is_admin() then
     raise exception 'Admin access required';
@@ -218,7 +218,7 @@ begin
     null;
   end;
 end;
-$$;
+$cas$;
 
 revoke all on function public.approve_withdrawal(uuid) from public;
 revoke all on function public.reject_withdrawal(uuid) from public;
@@ -243,7 +243,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $cas$
 begin
   if not exists (
     select 1 from public.profiles
@@ -264,7 +264,7 @@ begin
     order by l.created_at desc
     limit greatest(1, least(coalesce(p_limit, 100), 500));
 end;
-$$;
+$cas$;
 
 revoke all on function public.get_admin_audit_logs(integer) from public;
 grant execute on function public.get_admin_audit_logs(integer) to authenticated;
