@@ -15,6 +15,7 @@ import type { AdminUser } from "@/lib/mock-data";
 import { Logo } from "@/components/cas/Logo";
 import { StatusPill } from "@/components/cas/StatusPill";
 import { supabase } from "@/lib/supabase";
+import { logAdminAction } from "@/lib/admin-audit";
 
 export const Route = createFileRoute("/casadmin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — CAS" }, { name: "description", content: "Manage CAS users, appliances, bonuses, tasks and news." }, { property: "og:title", content: "Admin Dashboard — CAS" }, { property: "og:description", content: "Manage CAS users, appliances, bonuses, tasks and news." }] }),
@@ -120,18 +121,12 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
       return;
     }
 
-    // Record the successful sign-in with its IP and device. Best effort so
-    // login still works if the audit SQL has not been run yet.
-    try {
-      await supabase.rpc("log_admin_action", {
-        p_action: "admin.login",
-        p_target_type: "auth",
-        p_target_id: data.user.id,
-        p_metadata: { email },
-      });
-    } catch {
-      // Ignore audit transport failures.
-    }
+    // Record the successful sign-in. Best effort so login still works.
+    await logAdminAction(
+      "admin.login",
+      { type: "auth", id: data.user.id, metadata: { email } },
+      { id: data.user.id, email },
+    );
 
     sessionStorage.setItem("cas_admin_authenticated", "true");
     onSuccess(email);
@@ -282,11 +277,7 @@ function AdminRoute() {
 
   const signOut = async () => {
     // Record the sign-out while the admin session still exists.
-    try {
-      await supabase.rpc("log_admin_action", { p_action: "admin.logout" });
-    } catch {
-      // Ignore audit transport failures.
-    }
+    await logAdminAction("admin.logout");
     sessionStorage.removeItem("cas_admin_authenticated");
     await supabase.auth.signOut();
     setAuthenticated(false);
@@ -328,29 +319,26 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [auditLoading, setAuditLoading] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  /** Write an audit entry. Silently ignored until ADMIN_AUDIT_LOG.sql is run. */
+  /** Write an audit entry. Best effort: never block the underlying action. */
   const logAdmin = async (
     action: string,
     target?: { type?: string; id?: string; memberId?: string | null; metadata?: Record<string, unknown> },
   ) => {
-    try {
-      // Auditing is best effort: never let a missing table/RPC undo an action
-      // that has already succeeded in the database.
-      await supabase.rpc("log_admin_action", {
-        p_action: action,
-        p_target_type: target?.type ?? null,
-        p_target_id: target?.id ?? null,
-        p_member_id: target?.memberId ?? null,
-        p_metadata: target?.metadata ?? {},
-      });
-    } catch {
-      // Ignore audit transport failures.
-    }
+    await logAdminAction(action, {
+      type: target?.type,
+      id: target?.id,
+      memberId: target?.memberId,
+      metadata: target?.metadata,
+    });
   };
 
   const loadAuditLogs = async () => {
     setAuditLoading(true);
-    const { data, error } = await supabase.rpc("get_admin_audit_logs", { p_limit: 100 });
+    const { data, error } = await supabase
+      .from("admin_audit_logs")
+      .select("id,admin_email,action,target_type,target_id,member_id,ip_address,user_agent,metadata,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
     setAuditLoading(false);
     if (error) return;
     const rows = (Array.isArray(data) ? data : []) as Array<Record<string, unknown>>;
@@ -1109,7 +1097,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                     </div>
                   ) : auditLogs.length === 0 ? (
                     <p className="py-5 text-sm text-muted-foreground">
-                      No admin activity logged yet. Run <span className="font-semibold text-primary">ADMIN_AUDIT_LOG.sql</span> in Supabase, then sign in again.
+                      No admin activity logged yet. Run <span className="font-semibold text-primary">ENABLE_AUDIT_LOGGING.sql</span> in Supabase, then sign in again.
                     </p>
                   ) : auditLogs.map((row) => (
                     <div key={row.id} className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-start sm:justify-between">
