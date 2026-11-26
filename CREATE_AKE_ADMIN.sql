@@ -1,5 +1,15 @@
 -- Create Ake as an admin with a direct password (no magic link, no email confirmation)
--- Run this in the Supabase SQL Editor. Safe to re-run.
+--
+-- WARNING: Hosted Supabase does NOT allow the SQL Editor to INSERT into auth.users.
+-- Running this file there will fail with:
+--   ERROR: 42501: must be owner of table users
+--
+-- On hosted Supabase, create the user in:
+--   Authentication -> Users -> Add user -> enter password -> Auto Confirm User = ON
+-- then run ADD_CO_ADMIN.sql to grant admin role.
+-- Or use the admin dashboard Admins form (needs SUPABASE_SERVICE_ROLE_KEY).
+--
+-- This file is only usable on local/self-hosted Supabase.
 --
 -- IMPORTANT: change the password in the CTE below before running.
 -- This script creates the Auth user (bcrypt password, email already confirmed),
