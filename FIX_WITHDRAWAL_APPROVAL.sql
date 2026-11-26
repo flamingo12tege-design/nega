@@ -82,7 +82,7 @@ begin
     return null;
   end if;
 
-  select u.email into v_email from auth.users u where u.id = v_admin;
+  v_email := (select u.email from auth.users u where u.id = v_admin);
 
   begin
     v_headers := coalesce(nullif(current_setting('request.headers', true), ''), '{}')::jsonb;
@@ -131,53 +131,57 @@ as $$
 declare
   v_row public.wallet_ledger%rowtype;
   v_balance numeric;
+  v_found boolean := false;
 begin
   if not public.is_admin() then
     raise exception 'Admin access required';
   end if;
 
-  select * into v_row
-  from public.wallet_ledger
-  where id = p_ledger_id
-    and type = 'withdrawal'
-    and status = 'pending'
-  for update;
+  for v_row in
+    select *
+    from public.wallet_ledger
+    where id = p_ledger_id
+      and type = 'withdrawal'
+      and status = 'pending'
+    for update
+  loop
+    v_found := true;
 
-  if v_row.id is null then
-    raise exception 'Withdrawal already processed or not found';
-  end if;
-
-  select wallet_balance into v_balance
-  from public.profiles
-  where id = v_row.user_id
-  for update;
-
-  if v_balance is null or v_balance < abs(v_row.amount) then
-    raise exception 'Insufficient balance';
-  end if;
-
-  update public.profiles
-  set wallet_balance = wallet_balance - abs(v_row.amount)
-  where id = v_row.user_id;
-
-  update public.wallet_ledger
-  set status = 'completed', amount = -abs(v_row.amount)
-  where id = p_ledger_id;
-
-  -- Audit is best effort and can never undo the approval.
-  begin
-    perform public.log_admin_action(
-      'withdrawal.approved',
-      'wallet_ledger',
-      p_ledger_id::text,
-      null,
-      jsonb_build_object('amount', abs(v_row.amount), 'user_id', v_row.user_id)
+    v_balance := (
+      select wallet_balance
+      from public.profiles
+      where id = v_row.user_id
+      for update
     );
-  exception when others then
-    null;
-  end;
 
-  return abs(v_row.amount);
+    if v_balance < abs(v_row.amount) then
+      raise exception 'Insufficient balance';
+    end if;
+
+    update public.profiles
+    set wallet_balance = wallet_balance - abs(v_row.amount)
+    where id = v_row.user_id;
+
+    update public.wallet_ledger
+    set status = 'completed', amount = -abs(v_row.amount)
+    where id = p_ledger_id;
+
+    begin
+      perform public.log_admin_action(
+        'withdrawal.approved',
+        'wallet_ledger',
+        p_ledger_id::text,
+        null,
+        jsonb_build_object('amount', abs(v_row.amount), 'user_id', v_row.user_id)
+      );
+    exception when others then
+      null;
+    end;
+
+    return abs(v_row.amount);
+  end loop;
+
+  raise exception 'Withdrawal already processed or not found';
 end;
 $$;
 
