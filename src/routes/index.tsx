@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, ArrowDownToLine, ArrowUpFromLine, Download } from "lucide-react";
+import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, ArrowDownToLine, ArrowUpFromLine, Download, LifeBuoy } from "lucide-react";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -64,6 +64,7 @@ function Home() {
     { to: "/gifts", label: "Gifts", icon: Gift },
     { to: "/about", label: "About", icon: Info },
     { to: "/team", label: "Invite", icon: UserPlus },
+    { to: "/support", label: "Support", icon: LifeBuoy },
   ] as const;
 
   useEffect(() => {
@@ -106,10 +107,10 @@ function Home() {
         <Link to="/withdraw" className="press flex items-center justify-center gap-2 rounded-2xl bg-accent py-3.5 font-extrabold text-accent-foreground shadow-card"><ArrowUpFromLine className="h-5 w-5" />Withdraw</Link>
       </div>
 
-      <div className="mt-6 grid grid-cols-4 gap-x-3 gap-y-4 px-5">
+      <div className="mt-6 grid grid-cols-3 gap-x-3 gap-y-4 px-5 sm:grid-cols-6">
         {quick.map(({ to, label, icon: Icon }) => (
           <Link key={label} to={to} className="press flex flex-col items-center gap-2">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-card"><Icon className="h-6 w-6" /></span>
+            <span className={`grid h-14 w-14 place-items-center rounded-2xl shadow-card ${to === "/support" ? "bg-primary text-accent" : "bg-card text-primary"}`}><Icon className="h-6 w-6" /></span>
             <span className="text-center text-xs font-semibold leading-tight">{label}</span>
           </Link>
         ))}

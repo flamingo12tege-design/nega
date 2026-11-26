@@ -22,6 +22,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RechargeRouteImport } from './routes/recharge'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReviewsRouteImport } from './routes/reviews'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as WalletRouteImport } from './routes/wallet'
@@ -97,6 +98,11 @@ const ReviewsRoute = ReviewsRouteImport.update({
   path: '/reviews',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/recharge': typeof RechargeRoute
   '/register': typeof RegisterRoute
   '/reviews': typeof ReviewsRoute
+  '/support': typeof SupportRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/wallet': typeof WalletRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/recharge': typeof RechargeRoute
   '/register': typeof RegisterRoute
   '/reviews': typeof ReviewsRoute
+  '/support': typeof SupportRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/wallet': typeof WalletRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/recharge': typeof RechargeRoute
   '/register': typeof RegisterRoute
   '/reviews': typeof ReviewsRoute
+  '/support': typeof SupportRoute
   '/tasks': typeof TasksRoute
   '/team': typeof TeamRoute
   '/wallet': typeof WalletRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/recharge'
     | '/register'
     | '/reviews'
+    | '/support'
     | '/tasks'
     | '/team'
     | '/wallet'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/recharge'
     | '/register'
     | '/reviews'
+    | '/support'
     | '/tasks'
     | '/team'
     | '/wallet'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/recharge'
     | '/register'
     | '/reviews'
+    | '/support'
     | '/tasks'
     | '/team'
     | '/wallet'
@@ -305,6 +317,7 @@ export interface RootRouteChildren {
   RechargeRoute: typeof RechargeRoute
   RegisterRoute: typeof RegisterRoute
   ReviewsRoute: typeof ReviewsRoute
+  SupportRoute: typeof SupportRoute
   TasksRoute: typeof TasksRoute
   TeamRoute: typeof TeamRoute
   WalletRoute: typeof WalletRoute
@@ -409,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tasks': {
       id: '/tasks'
       path: '/tasks'
@@ -489,6 +509,7 @@ const rootRouteChildren: RootRouteChildren = {
   RechargeRoute: RechargeRoute,
   RegisterRoute: RegisterRoute,
   ReviewsRoute: ReviewsRoute,
+  SupportRoute: SupportRoute,
   TasksRoute: TasksRoute,
   TeamRoute: TeamRoute,
   WalletRoute: WalletRoute,
