@@ -6,6 +6,10 @@
 -- keywords, both, or neither. When a password is set it is still required on
 -- withdrawal requests; the keywords can reset it if it is forgotten.
 
+-- Supabase SQL Editor may be impersonating "authenticated" (current_user).
+-- Reset to the session owner (session_user = postgres) so DDL is allowed.
+reset role;
+
 -- 0) Make sure the table exists (safe on projects where the original
 --    WITHDRAWAL_PASSWORD.sql was never run).
 --    pgcrypto is already installed by Supabase in the extensions schema;

@@ -8,7 +8,8 @@
 --   updated_at timestamptz not null default now()
 -- Enable RLS, no policies.
 --
--- If CREATE FUNCTION is also denied, ask Lovable to apply this file.
+-- If CREATE FUNCTION is also denied, reset role impersonation first.
+reset role;
 
 -- 2) Save / update password and/or keywords.
 --    p_password:  null = keep current, '' = clear, text = set new
