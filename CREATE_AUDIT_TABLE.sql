@@ -12,6 +12,7 @@ create table if not exists public.admin_audit_logs (
   admin_id uuid references auth.users (id) on delete set null,
   admin_email text,
   action text not null,
+  target_table text,
   target_type text,
   target_id text,
   member_id text,
