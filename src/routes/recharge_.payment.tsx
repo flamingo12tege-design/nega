@@ -49,24 +49,29 @@ function Page() {
     }
   };
 
-  const runOcr = async (file: File) => {
-    setOcrState("scanning");
+  /** Scan a screenshot and return the detected CBE transaction number, if any. */
+  const scanTransaction = async (file: File): Promise<string | null> => {
     try {
       const scanFile = await compressForOcr(file);
       const formData = new FormData();
       formData.append("file", scanFile);
       const result = await ocrImage({ data: formData });
-      if (result?.ok && result.txn) {
-        setTxn(result.txn);
-        setOcrState("found");
-        toast.success("Transaction detected", { description: result.txn });
-      } else {
-        setOcrState("not-found");
-        toast.error("No transaction found", { description: result?.error ?? "Couldn't read a transaction reference from that image — type it manually or upload a clearer screenshot." });
-      }
+      return result?.ok && result.txn ? result.txn : null;
     } catch {
+      return null;
+    }
+  };
+
+  const runOcr = async (file: File) => {
+    setOcrState("scanning");
+    const found = await scanTransaction(file);
+    if (found) {
+      setTxn(found);
+      setOcrState("found");
+      toast.success("Transaction detected", { description: found });
+    } else {
       setOcrState("not-found");
-      toast.error("OCR scan failed", { description: "Check your connection and try again." });
+      toast.error("No transaction found", { description: "Couldn't read a transaction reference from that image — type it manually or upload a clearer screenshot." });
     }
   };
 
@@ -102,11 +107,26 @@ function Page() {
   };
 
   const doSubmit = async () => {
-    if (!proofFile && !txn.trim()) { toast.error("Add a screenshot or transaction number"); return; }
-
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) { toast.error("Please log in first"); return; }
+
+    // If the member uploaded a screenshot but did not type a reference, scan
+    // it now so instant approval still works even if the background OCR was
+    // still running when they pressed submit.
+    let reference = txn.trim();
+    if (!reference && proofFile) {
+      setOcrState("scanning");
+      reference = (await scanTransaction(proofFile)) ?? "";
+      if (reference) {
+        setTxn(reference);
+        setOcrState("found");
+      } else {
+        setOcrState("not-found");
+      }
+    }
+
+    if (!proofFile && !reference) { toast.error("Add a screenshot or transaction number"); return; }
 
     // Upload the screenshot first; no deposit row exists yet, so a rejected
     // verification never leaves a pending deposit behind.
@@ -123,7 +143,6 @@ function Page() {
 
     // Verify the CBE payment before creating a deposit. A definitive rejection
     // stops here; only an unreachable/transient verifier goes to manual review.
-    const reference = txn.trim();
     let verification: "verified" | "rejected" | "unverifiable" = "unverifiable";
     let verifyMessage = "";
 
@@ -195,8 +214,9 @@ function Page() {
         description: "We couldn't verify the payment automatically. An admin will check your proof.",
       });
     } else if (!reference) {
+      await logFailure("manual_review");
       toast("Sent for manual review", {
-        description: "Add a transaction number next time to get instant approval.",
+        description: "We couldn't read the transaction number from your screenshot. Type it manually next time for instant approval.",
       });
     }
 
