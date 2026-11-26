@@ -98,15 +98,26 @@ function Page() {
         <Link to="/appliances" className="absolute left-4 top-4 rounded-full bg-background/90 px-3 py-1.5 text-sm font-semibold shadow-card">← Back</Link>
       </div>
       <div className="-mt-6 rounded-t-3xl bg-background p-5 lg:mt-0 lg:rounded-3xl lg:shadow-card">
-        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">VIP {a.tier}</span>
+        <span className="rounded-full bg-primary px-3 py-1 text-xs font-extrabold tracking-wide text-accent">VIP{a.tier}</span>
         <h1 className="mt-3 text-2xl font-extrabold">{a.name}</h1>
         <p className="mt-1 text-muted-foreground">{a.short}</p>
-        <p className="mt-4 text-3xl font-extrabold text-primary">{etb(a.price)}</p>
-        <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-secondary p-3">
-          <div><p className="text-xs text-muted-foreground">Daily payout</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Monthly</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout * 30)}</p></div>
-          <div><p className="text-xs text-muted-foreground">{rewardRules.packageDurationDays}-day total</p><p className="mt-1 text-sm font-bold">{etb(a.dailyPayout * rewardRules.packageDurationDays)}</p></div>
+        <p className="mt-4 text-xs font-bold uppercase tracking-wide text-muted-foreground">Investment</p>
+        <p className="text-3xl font-extrabold text-primary">{etb(a.price)}</p>
+        <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-primary p-3 text-primary-foreground">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-primary-foreground/60">Daily return</p>
+            <p className="mt-1 text-sm font-extrabold text-accent tabular-nums">{etb(Math.round(a.dailyPayout))}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-primary-foreground/60">Duration</p>
+            <p className="mt-1 text-sm font-extrabold tabular-nums">{rewardRules.packageDurationDays} Days</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-primary-foreground/60">Total return</p>
+            <p className="mt-1 text-sm font-extrabold text-accent tabular-nums">{etb(Math.round(a.dailyPayout * rewardRules.packageDurationDays))}</p>
+          </div>
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">Daily claims are required to earn each day's return.</p>
         <ul className="mt-4 space-y-2">
           {a.details.map((d) => <li key={d} className="flex items-center gap-2 text-sm"><Check className="h-4 w-4 text-success" />{d}</li>)}
         </ul>
