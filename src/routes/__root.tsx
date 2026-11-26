@@ -278,7 +278,7 @@ function RootComponent() {
         <WelcomeModal
           credited={welcome.credited}
           memberId={welcome.memberId}
-          continueLabel={welcome.signedIn ? "Start earning" : "Back to login"}
+          continueLabel="Join the channel"
           onContinue={() => {
             clearQueuedWelcome();
             setWelcome(null);
