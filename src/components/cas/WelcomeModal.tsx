@@ -7,8 +7,8 @@ import { rewardRules } from "@/lib/mock-data";
 const TELEGRAM_CHANNEL = "https://t.me/CAS_Official_Channel03";
 
 /**
- * Full-screen announcement shown to a newly registered member after they
- * land on the homepage. Focused on the welcome bonus and official channel.
+ * Centered popup shown on the homepage after a new member registers.
+ * Focused on the welcome bonus and the official Telegram channel.
  */
 export function WelcomeModal({
   credited,
@@ -29,89 +29,88 @@ export function WelcomeModal({
   if (!mounted) return null;
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="welcome-title"
-      className="fixed inset-0 z-50 overflow-y-auto bg-primary text-primary-foreground"
-    >
-      <div className="relative min-h-dvh">
-        {/* Background texture */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.13]"
-          style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "22px 22px" }}
-        />
-        <div className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-accent/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -right-20 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
 
-        <button
-          type="button"
-          onClick={onContinue}
-          aria-label="Close"
-          className="press absolute right-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full bg-white/10 text-primary-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="welcome-title"
+        className="rise relative max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-card shadow-lift"
+      >
+        {/* Hero */}
+        <div className="relative overflow-hidden bg-primary px-6 pb-14 pt-7 text-center text-primary-foreground">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.14]"
+            style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }}
+          />
+          <div className="pointer-events-none absolute -left-10 -top-12 h-40 w-40 rounded-full bg-accent/25 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-16 -right-10 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
 
-        <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 pb-44 pt-14 sm:pt-20">
-          <div className="text-center">
-            <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-accent text-accent-foreground shadow-lift">
-              <Gift className="h-9 w-9" />
-            </span>
-            <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.22em] text-accent">
-              <Sparkles className="h-3.5 w-3.5" />Welcome to CAS
-            </p>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
-              {memberId ? `Welcome, ${memberId}!` : "Welcome to CAS!"}
-            </h1>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-primary-foreground/75">
-              Your account is ready — and your welcome gift is waiting below.
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={onContinue}
+            aria-label="Close"
+            className="press absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white/10 text-primary-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
+          <span className="relative mx-auto grid h-16 w-16 place-items-center rounded-full bg-accent text-accent-foreground shadow-lift">
+            <Gift className="h-7 w-7" />
+          </span>
+          <p className="relative mt-4 flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">
+            <Sparkles className="h-3.5 w-3.5" />Welcome to CAS
+          </p>
+          <h2 id="welcome-title" className="relative mt-1 text-2xl font-extrabold tracking-tight">
+            {memberId ? `Welcome, ${memberId}!` : "Welcome to CAS!"}
+          </h2>
+          <p className="relative mx-auto mt-1 max-w-xs text-sm text-primary-foreground/75">
+            Your account is ready — and your welcome gift is waiting below.
+          </p>
+        </div>
+
+        <div className="space-y-4 px-5 pb-5">
           {/* Bonus card */}
-          <div className="mt-8 rounded-3xl border border-accent bg-accent/10 p-6 text-center shadow-lift">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-accent">Your welcome bonus</p>
-            <p className="mt-2 text-5xl font-extrabold tracking-tight tabular-nums">{etb(bonus)}</p>
-            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-success/20 px-4 py-1.5 text-xs font-bold text-success">
-              <span className="h-2 w-2 rounded-full bg-success" />
+          <div className="-mt-9 rounded-2xl border border-accent bg-accent/10 p-5 text-center shadow-card">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary/70">Your welcome bonus</p>
+            <p className="mt-1 text-4xl font-extrabold tracking-tight text-primary tabular-nums">{etb(bonus)}</p>
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-success/15 px-3 py-1 text-[11px] font-bold text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
               {credited ? "Added to your CAS wallet" : "Will be added to your CAS wallet"}
             </p>
           </div>
 
           {/* Telegram channel */}
-          <div className="mt-5 overflow-hidden rounded-3xl bg-card text-card-foreground shadow-card">
-            <div className="flex items-center gap-3 border-b px-4 py-4">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#229ED9] text-white">
-                <Send className="h-5 w-5" />
+          <div className="overflow-hidden rounded-2xl border bg-surface">
+            <div className="flex items-center gap-3 border-b px-4 py-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#229ED9] text-white">
+                <Send className="h-4 w-4" />
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-extrabold">Join our official channel</p>
                 <p className="truncate text-xs text-muted-foreground">@CAS_Official_Channel03</p>
               </div>
             </div>
-            <p className="px-4 py-4 text-sm leading-6 text-muted-foreground">
+            <p className="px-4 py-3 text-xs leading-5 text-muted-foreground">
               Get announcements, new package updates and reward news straight from CAS.
             </p>
           </div>
-        </div>
 
-        {/* Sticky bottom actions */}
-        <div className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-primary/95 px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur">
-          <div className="mx-auto max-w-md space-y-2">
-            <a
-              href={TELEGRAM_CHANNEL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={onContinue}
-              className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground"
-            >
-              <Send className="h-4 w-4" />{continueLabel}<ArrowUpRight className="h-4 w-4" />
-            </a>
-            <button type="button" onClick={onContinue} className="w-full py-1 text-center text-xs font-semibold text-primary-foreground/70">
-              I'll join later
-            </button>
-          </div>
+          {/* Primary CTA */}
+          <a
+            href={TELEGRAM_CHANNEL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onContinue}
+            className="press flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground"
+          >
+            <Send className="h-4 w-4" />{continueLabel}<ArrowUpRight className="h-4 w-4" />
+          </a>
+
+          <button type="button" onClick={onContinue} className="w-full text-center text-xs font-semibold text-muted-foreground">
+            I'll join later
+          </button>
         </div>
       </div>
     </div>,

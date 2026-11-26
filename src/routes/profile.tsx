@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { UserRound, ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, Sparkles, PiggyBank, Landmark, Check } from "lucide-react";
+import { UserRound, ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, PiggyBank, Landmark, Check } from "lucide-react";
 import { fmtDate, etb, maskAccount } from "@/lib/format";
 import { actions, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
@@ -120,7 +120,6 @@ function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> 
     { l: "This month", v: wallet.thisMonth, i: ChartColumnIncreasing, t: "bg-tint-green" },
   ];
   const rows = [
-    { l: "This week", v: wallet.thisWeek, i: Sparkles },
     { l: "Total deposit", v: wallet.totalDeposit, i: PiggyBank },
     { l: "Total withdrawal", v: wallet.totalWithdrawal, i: Landmark },
   ];
