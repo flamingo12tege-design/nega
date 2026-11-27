@@ -22,6 +22,8 @@ import { supabase } from "@/lib/supabase";
 import { actions, useStore } from "@/lib/store";
 import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-data";
 import { WELCOME_QUEUED_EVENT, clearQueuedWelcome, getQueuedWelcome, type QueuedWelcome } from "@/lib/welcome";
+import { queryKeys } from "@/lib/queries";
+import { walletQueryKey } from "@/lib/use-supabase-wallet";
 
 function NotFoundComponent() {
   return (
@@ -264,10 +266,18 @@ function RootComponent() {
       actions.setLoggedIn(signedIn);
       setHasSession(signedIn);
       setSessionReady(true);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.session });
+      void queryClient.invalidateQueries({ queryKey: walletQueryKey });
+      if (!signedIn) {
+        queryClient.removeQueries({ queryKey: ["profile"] });
+        queryClient.removeQueries({ queryKey: ["purchases"] });
+        queryClient.removeQueries({ queryKey: ["daily-claims"] });
+        queryClient.removeQueries({ queryKey: walletQueryKey });
+      }
     });
 
     return () => authListener.subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   // URL guards: signed-out visitors are sent to the auth page, signed-in members skip it.
   useEffect(() => {
