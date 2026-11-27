@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3,
+  Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3, TicketPercent,
   Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
   Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft, LockKeyhole, Eye, EyeOff,
   ScrollText, ShieldCheck, Globe, Monitor, KeyRound, ArrowRight, LayoutGrid,
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/casadmin")({
 
 const tabs = [
   { k: "analytics", l: "Overview", i: BarChart3 }, { k: "users", l: "Users", i: Users }, { k: "appliances", l: "Packages", i: ShoppingBag },
-  { k: "bonuses", l: "Bonuses", i: Gift }, { k: "tasks", l: "Tasks", i: ListChecks }, { k: "news", l: "News", i: Newspaper }, { k: "transactions", l: "Ledger", i: ReceiptText },
+  { k: "bonuses", l: "Bonuses", i: Gift }, { k: "giftcodes", l: "Gift codes", i: TicketPercent }, { k: "tasks", l: "Tasks", i: ListChecks }, { k: "news", l: "News", i: Newspaper }, { k: "transactions", l: "Ledger", i: ReceiptText },
   { k: "audit", l: "Audit log", i: ScrollText },
 ] as const;
 type Tab = (typeof tabs)[number]["k"];
@@ -319,6 +319,9 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [giftCodes, setGiftCodes] = useState<Array<{ id: string; code: string; amount: number; max_redemptions: number; redeemed_count: number; active: boolean; created_at: string }>>([]);
+  const [giftDraft, setGiftDraft] = useState({ amount: "", maxRedemptions: "1", count: "1" });
+  const [giftLoading, setGiftLoading] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
   /** Write an audit entry. Best effort: never block the underlying action. */
@@ -356,6 +359,62 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       metadata: (row["metadata"] && typeof row["metadata"] === "object" ? row["metadata"] : null) as Record<string, unknown> | null,
       created_at: String(row["created_at"] ?? ""),
     })));
+  };
+
+  const loadGiftCodes = async () => {
+    setGiftLoading(true);
+    const { data, error } = await supabase
+      .from("gift_codes")
+      .select("id,code,amount,max_redemptions,redeemed_count,active,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    setGiftLoading(false);
+    if (error) {
+      if (/relation .* does not exist|could not find the table|schema cache/i.test(error.message)) {
+        toast.error("Gift codes table missing", { description: "Run GIFT_CODES.sql in Supabase." });
+      }
+      return;
+    }
+    setGiftCodes((data ?? []).map((row) => ({
+      id: String(row.id),
+      code: String(row.code ?? ""),
+      amount: Number(row.amount) || 0,
+      max_redemptions: Number(row.max_redemptions) || 0,
+      redeemed_count: Number(row.redeemed_count) || 0,
+      active: row.active !== false,
+      created_at: String(row.created_at ?? ""),
+    })));
+  };
+
+  const generateGiftCodes = async () => {
+    const amount = Number(giftDraft.amount);
+    const maxRedemptions = Math.max(1, Math.floor(Number(giftDraft.maxRedemptions) || 1));
+    const count = Math.min(20, Math.max(1, Math.floor(Number(giftDraft.count) || 1)));
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error("Enter a valid reward amount"); return; }
+
+    setGiftLoading(true);
+    const { data, error } = await supabase.rpc("generate_gift_codes", {
+      p_amount: amount,
+      p_max_redemptions: maxRedemptions,
+      p_count: count,
+    });
+    setGiftLoading(false);
+
+    if (error) {
+      const message = error.message ?? "Could not generate gift codes.";
+      if (/could not find the function|does not exist|unknown function/i.test(message)) {
+        toast.error("Gift code setup missing", { description: "Run GIFT_CODES.sql in Supabase." });
+        return;
+      }
+      toast.error("Could not generate gift codes", { description: message });
+      return;
+    }
+
+    const created = Array.isArray(data) ? data.length : count;
+    void logAdmin("gift_codes.generated", { type: "gift_code", metadata: { amount, maxRedemptions, count: created } });
+    toast.success(`${created} gift code${created === 1 ? "" : "s"} generated`);
+    setGiftDraft({ amount: "", maxRedemptions: "1", count: "1" });
+    void loadGiftCodes();
   };
 
   const loadPendingRecharges = async () => {
@@ -490,6 +549,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     setSelectedUserId(null);
     setMoreOpen(false);
     if (nextTab === "audit") void loadAuditLogs();
+    if (nextTab === "giftcodes") void loadGiftCodes();
   };
 
   const addTask = () => {
@@ -944,6 +1004,95 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
             </>
           )}
 
+          {tab === "giftcodes" && (
+            <>
+              <div className={card}>
+                <p className="font-bold">Generate gift codes</p>
+                <p className="mt-1 text-xs text-muted-foreground">Create redemption codes with a reward amount and a maximum number of users who can redeem each code.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="text-sm font-semibold">Amount (ETB)</span>
+                    <input
+                      inputMode="numeric"
+                      value={giftDraft.amount}
+                      onChange={(e) => setGiftDraft({ ...giftDraft, amount: e.target.value.replace(/\D/g, "") })}
+                      placeholder="e.g. 100"
+                      className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold">Users per code</span>
+                    <input
+                      inputMode="numeric"
+                      value={giftDraft.maxRedemptions}
+                      onChange={(e) => setGiftDraft({ ...giftDraft, maxRedemptions: e.target.value.replace(/\D/g, "") })}
+                      placeholder="e.g. 1"
+                      className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold">Codes to generate</span>
+                    <input
+                      inputMode="numeric"
+                      value={giftDraft.count}
+                      onChange={(e) => setGiftDraft({ ...giftDraft, count: e.target.value.replace(/\D/g, "") })}
+                      placeholder="e.g. 1"
+                      className="mt-1 w-full rounded-xl border bg-surface px-4 py-2.5"
+                    />
+                  </label>
+                </div>
+                <button
+                  onClick={() => void generateGiftCodes()}
+                  disabled={giftLoading}
+                  className="press mt-4 w-full rounded-xl bg-accent py-3 font-bold text-accent-foreground disabled:opacity-60 sm:w-auto sm:px-6"
+                >
+                  {giftLoading ? "Generating..." : "Generate codes"}
+                </button>
+              </div>
+
+              <div className={card}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">Gift codes</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Users redeem these codes from the Gifts page.</p>
+                  </div>
+                  <button onClick={() => void loadGiftCodes()} className="press rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-primary">Refresh</button>
+                </div>
+                <div className="mt-3 divide-y">
+                  {giftCodes.length === 0 ? (
+                    <p className="py-4 text-sm text-muted-foreground">No gift codes yet.</p>
+                  ) : giftCodes.map((gift) => {
+                    const usedUp = gift.redeemed_count >= gift.max_redemptions;
+                    return (
+                      <div key={gift.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-extrabold tracking-wide">{gift.code}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {etb(gift.amount)} · {gift.redeemed_count}/{gift.max_redemptions} redeemed · {fmtDate(gift.created_at)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${!gift.active ? "bg-muted text-muted-foreground" : usedUp ? "bg-warning/20 text-primary" : "bg-success/15 text-success"}`}>
+                            {!gift.active ? "Inactive" : usedUp ? "Used up" : "Active"}
+                          </span>
+                          <button
+                            onClick={async () => {
+                              await navigator.clipboard.writeText(gift.code);
+                              toast.success("Gift code copied");
+                            }}
+                            className="press rounded-lg bg-secondary px-3 py-1.5 text-xs font-bold text-primary"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
           {tab === "tasks" && (
             <>
               <div className={card}>
@@ -1315,7 +1464,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-bold">{l}</span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      {k === "appliances" ? "Catalogue & requests" : k === "bonuses" ? "Commission rules" : k === "tasks" ? "Bonus tasks" : k === "news" ? "Announcements" : "Admin activity"}
+                      {k === "appliances" ? "Catalogue & requests" : k === "bonuses" ? "Commission rules" : k === "giftcodes" ? "Generate & manage codes" : k === "tasks" ? "Bonus tasks" : k === "news" ? "Announcements" : "Admin activity"}
                     </span>
                   </span>
                 </button>
