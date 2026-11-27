@@ -16,7 +16,7 @@ import type { ReferralLevel, ReferralSettings } from "./referral";
 export type Appliance = { id: string; tier: number; name: string; price: number; dailyPayout: number; image: string; short: string; details: string[] };
 
 export const rewardRules = {
-  /** Daily income is 4.6% of the package price (ETB 1,300 → ETB 59.8 per day). */
+  /** Daily income is ~4.6% of the package price, stored as whole birr (ETB 1,300 -> ETB 60/day). */
   dailyReturnPercent: 4.6,
   /** ETB 50 welcome credit, payable once per new member. */
   registrationBonus: 50,
@@ -44,8 +44,8 @@ export const isLocked = (a: Appliance) => a.tier >= LOCKED_FROM_TIER;
 
 /** Default catalogue used as an SSR seed; the live list is loaded from Supabase `packages`. */
 export const appliances: Appliance[] = [
-  { id: "starter", tier: 1, name: "Electric Kettle", price: 1300, dailyPayout: 59.8, image: kettle, short: "Everyday essentials to begin your CAS journey.", details: ["Entry-level package", "Contents confirmed by CAS admin", "Fast processing"] },
-  { id: "basic", tier: 2, name: "Steam Iron", price: 4200, dailyPayout: 193.2, image: iron, short: "Practical helpers for daily home care.", details: ["Small home appliance tier", "Contents confirmed by CAS admin", "Standard support"] },
+  { id: "starter", tier: 1, name: "Electric Kettle", price: 1300, dailyPayout: 60, image: kettle, short: "Everyday essentials to begin your CAS journey.", details: ["Entry-level package", "Contents confirmed by CAS admin", "Fast processing"] },
+  { id: "basic", tier: 2, name: "Steam Iron", price: 4200, dailyPayout: 193, image: iron, short: "Practical helpers for daily home care.", details: ["Small home appliance tier", "Contents confirmed by CAS admin", "Standard support"] },
   { id: "kitchen", tier: 3, name: "Blender", price: 12500, dailyPayout: 575, image: blender, short: "Upgrade your kitchen routine.", details: ["Kitchen appliance tier", "Contents confirmed by CAS admin", "Priority support"] },
   { id: "family", tier: 4, name: "Rice Cooker", price: 18000, dailyPayout: 828, image: rice, short: "Made for busy family homes.", details: ["Family tier", "Contents confirmed by CAS admin", "Priority support"] },
   { id: "comfort", tier: 5, name: "Comfort Package", price: 35000, dailyPayout: 1610, image: microwave, short: "Comfort and convenience, every day.", details: ["Mid-size appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
@@ -55,7 +55,7 @@ export const appliances: Appliance[] = [
 ];
 export const initialLockedIds = appliances.filter((a) => a.tier >= LOCKED_FROM_TIER).map((a) => a.id);
 
-/** Headline plans for the new-member announcement. Totals use the exact payout, not the rounded daily figure. */
+/** Headline plans for the new-member announcement. All payout figures are whole birr. */
 export const vipPlans = appliances.slice(0, 2).map((a) => ({
   level: `VIP${a.tier}`,
   investment: a.price,
