@@ -116,19 +116,29 @@ function Page() {
     void queryClient.invalidateQueries({ queryKey: walletQueryKey });
   };
 
-  const claimTeam = () => {
-    const result = actions.claimTeamCommission();
-    if (result.ok) {
-      setSuccess({
-        title: "Income!",
-        amount: Math.round(result.amount),
-        label: "Team commission",
-      });
-    } else if (result.reason === "already-claimed") {
-      toast("Already claimed today", { description: "Your next team commission unlocks tomorrow." });
-    } else {
-      toast("No team commission due", { description: "Eligible active members are needed to earn." });
+  const claimTeam = async () => {
+    const { data, error } = await supabase.rpc("claim_team_commission");
+    if (error) {
+      const message = error.message ?? "";
+      if (/already claimed/i.test(message)) {
+        toast("Already claimed today", { description: "Your next team commission unlocks tomorrow." });
+      } else if (/no team commission due/i.test(message)) {
+        toast("No team commission due", { description: "Eligible active members are needed to earn." });
+      } else if (/could not find the function|does not exist|unknown function/i.test(message)) {
+        toast.error("Team commission needs an update", { description: "Please run TEAM_COMMISSION.sql in Supabase." });
+      } else {
+        toast.error("Could not claim team commission", { description: message });
+      }
+      return;
     }
+
+    const amount = Number(data) || 0;
+    setSuccess({
+      title: "Income!",
+      amount: Math.round(amount),
+      label: "Team commission",
+    });
+    void queryClient.invalidateQueries({ queryKey: walletQueryKey });
   };
 
   const act = (id: string, status: TaskStatus, reward?: number, taskTitle?: string) => {
@@ -237,7 +247,7 @@ function Page() {
             </div>
             <button
               disabled={commissionClaimedToday || dailyCommission <= 0}
-              onClick={claimTeam}
+              onClick={() => void claimTeam()}
               className="press shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground"
             >
               {commissionClaimedToday ? "Claimed today" : dailyCommission <= 0 ? "Nothing due" : "Claim today"}

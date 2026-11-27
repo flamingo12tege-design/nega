@@ -7,8 +7,6 @@ import { rewardRules, type TeamMember } from "@/lib/mock-data";
 import {
   dailyCommission,
   isVipEligible,
-  recruitmentBonusTotal,
-  teamCommissionTotal,
   type ReferralLevel,
 } from "@/lib/referral";
 import { etb, fmtDate } from "@/lib/format";
@@ -62,6 +60,22 @@ function Page() {
         const memberId = profile?.member_id as string | undefined;
         if (memberId) setMyCode(memberId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase());
 
+        const [dueResult, recruitmentResult] = await Promise.all([
+          supabase.rpc("team_commission_due"),
+          supabase
+            .from("wallet_ledger")
+            .select("amount")
+            .eq("user_id", authUser.id)
+            .eq("type", "recruitment_bonus")
+            .eq("status", "completed"),
+        ]);
+        if (!dueResult.error) setTeamCommission(Number(dueResult.data) || 0);
+        if (!recruitmentResult.error) {
+          setRecruitmentBonus(
+            (recruitmentResult.data ?? []).reduce((sum, row) => sum + Number(row.amount || 0), 0),
+          );
+        }
+
         const { data, error } = await supabase.rpc("get_referral_tree");
         if (error) {
           setLoadError(true);
@@ -93,8 +107,8 @@ function Page() {
   const link = `${origin}/register?ref=${myCode}`;
   const msg = encodeURIComponent(`Join me on CAS — quality home appliances and rewards: ${link}`);
   const { settings } = useReferral();
-  const teamCommission = teamCommissionTotal(team, settings.dailyCommissionPercentByLevel, vip, rewardRules.packageDurationDays);
-  const recruitmentBonus = recruitmentBonusTotal(team, settings.recruitmentBonusPercent, vip);
+  const [teamCommission, setTeamCommission] = useState(0);
+  const [recruitmentBonus, setRecruitmentBonus] = useState(0);
 
   const memberCommission = (m: TeamMember) => {
     if (m.status !== "Active" || m.daysActive >= rewardRules.packageDurationDays || !isVipEligible(vip, m.vip)) return 0;
