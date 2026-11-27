@@ -36,7 +36,17 @@ function Page() {
   const spin = () => {
     if (spinning) return;
     const index = Math.floor(Math.random() * segments.length);
-    const target = 360 * 6 - index * SLICE - SLICE / 2;
+
+    // Each slice is centred on its angle (the gradient starts half a slice
+    // before 0deg), so rotating by -index * SLICE puts that slice exactly
+    // under the top pointer. Add full turns plus the shortest forward delta
+    // so every spin looks like a real spin and never reverses.
+    const currentMod = ((rotation % 360) + 360) % 360;
+    const desiredMod = ((360 - index * SLICE) % 360 + 360) % 360;
+    let delta = desiredMod - currentMod;
+    if (delta < 0) delta += 360;
+    const target = rotation + 360 * 6 + delta;
+
     setResult(null);
     setSpinning(true);
     setRotation(target);
