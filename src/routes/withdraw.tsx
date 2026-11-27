@@ -110,7 +110,23 @@ function Page() {
         </div>
       </section>
 
-      <div className="mx-5 mt-4">
+      <div className="mx-5 mt-4 space-y-4">
+        <section className="rounded-3xl bg-card p-5 shadow-card">
+          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-muted-foreground">Withdrawal rules</p>
+          <div className="mt-3 space-y-3 text-sm">
+            <div className="rounded-2xl bg-surface p-3">
+              <p className="font-bold">🔄 Withdrawal Frequency: Once per day</p>
+            </div>
+            <div className="rounded-2xl bg-surface p-3">
+              <p className="font-bold">WITHDRAWAL DAYS &amp; OPERATING HOURS</p>
+              <p className="mt-1 text-muted-foreground">📅 Withdrawal Days: Monday – Saturday</p>
+              <p className="text-muted-foreground">⏰ Operating Hours: 3:00 AM – 11:00 PM</p>
+              <p className="text-muted-foreground">⚡️ Processing Time: 1–48 Hours</p>
+              <p className="text-muted-foreground">🚫 Sunday: No Withdrawal Operations</p>
+            </div>
+          </div>
+        </section>
+
         {!eligibility ? (
           <div className="rounded-3xl bg-card p-6 text-center shadow-card">
             <span className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />

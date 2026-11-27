@@ -1,5 +1,5 @@
-// Referral / recruitment rules: 6% one-time on a direct recruit's package,
-// then 6% / 4% / 2% of each downline member's daily income for levels A / B / C.
+// Referral / recruitment rules: 10% one-time on a direct recruit's package,
+// then 8% / 3% / 1% of each downline member's daily income for levels A / B / C.
 export type ReferralLevel = 1 | 2 | 3;
 
 /** Admin-editable rates, persisted in the in-memory store. */

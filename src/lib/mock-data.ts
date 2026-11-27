@@ -21,12 +21,16 @@ export const rewardRules = {
   withdrawalFeePercent: 10,
   /** Each active package pays daily income for this many days. */
   packageDurationDays: 45,
+  withdrawalDays: "Monday – Saturday",
+  withdrawalHours: "3:00 AM – 11:00 PM",
+  withdrawalProcessing: "1–48 Hours",
+  withdrawalFrequency: "Once per day",
 } as const;
 
-/** 6% one-time recruitment bonus + 6% / 4% / 2% daily team commission (A / B / C). */
+/** 10% one-time recruitment bonus (Level 1) + 8% / 3% / 1% daily team commission (A / B / C). */
 export const referralRules: ReferralSettings = {
-  recruitmentBonusPercent: 6,
-  dailyCommissionPercentByLevel: [6, 4, 2],
+  recruitmentBonusPercent: 10,
+  dailyCommissionPercentByLevel: [8, 3, 1],
 };
 
 /** Tiers from this number upward start locked; the admin can change each package. */

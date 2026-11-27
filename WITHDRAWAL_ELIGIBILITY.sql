@@ -96,12 +96,34 @@ declare
   v_available numeric;
   v_hash text;
   v_id uuid;
+  v_now timestamp := (now() at time zone 'Africa/Addis_Ababa');
+  v_dow integer := extract(isodow from v_now)::integer; -- 1=Mon ... 7=Sun
+  v_hour integer := extract(hour from v_now)::integer;
 begin
   if v_user_id is null then
     raise exception 'Authentication required';
   end if;
   if v_amount <= 0 then
     raise exception 'Enter a valid withdrawal amount';
+  end if;
+
+  -- Withdrawal schedule: Monday-Saturday, 3:00 AM - 11:00 PM (EAT).
+  if v_dow = 7 then
+    raise exception 'Withdrawals are not available on Sunday';
+  end if;
+  if v_hour < 3 or v_hour >= 23 then
+    raise exception 'Withdrawals are available from 3:00 AM to 11:00 PM';
+  end if;
+
+  -- One withdrawal request per day (EAT).
+  if exists (
+    select 1
+    from public.wallet_ledger
+    where user_id = v_user_id
+      and type = 'withdrawal'
+      and (created_at at time zone 'Africa/Addis_Ababa')::date = v_now::date
+  ) then
+    raise exception 'You can only request one withdrawal per day';
   end if;
 
   -- A package must be approved before any withdrawal is allowed.
