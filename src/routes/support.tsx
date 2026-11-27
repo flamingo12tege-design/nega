@@ -72,7 +72,11 @@ function Page() {
       );
 
       const telegramGroup = pickFirst(values["support_telegram_group"], values["support_telegram"]);
-      const telegramChannel = pickFirst(values["support_telegram_channel"], values["support_telegram"]);
+      const telegramChannel = pickFirst(
+        values["support_telegram_channel"],
+        values["support_telegram"],
+        "https://t.me/CAS_Official_Channel03",
+      );
 
       const next: SupportChannels = {};
       if (customerService) next.customerService = customerService;
