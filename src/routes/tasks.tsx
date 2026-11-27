@@ -9,12 +9,12 @@ import { etb, fmtDate } from "@/lib/format";
 import { actions, useReferral, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { PageHeader, Section } from "@/components/cas/AppShell";
-import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
+import { IncomeSuccessModal } from "@/components/cas/IncomeSuccessModal";
 import type { TaskStatus } from "@/lib/mock-data";
 import { walletQueryKey } from "@/lib/use-supabase-wallet";
 import { queryKeys, useDailyClaims, usePurchases, useSessionUser } from "@/lib/queries";
 
-type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
+type SuccessCard = { title: string; amount: number; label: string };
 
 /** Small allow-list so we don't pull every lucide icon into the bundle. */
 const taskIcons: Record<string, LucideIcon> = { Sparkles };
@@ -109,13 +109,9 @@ function Page() {
     const appliance = allPackages.find((a) => a.id === applianceId);
     if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.dailyClaims(userId) });
     setSuccess({
-      title: "Daily income claimed",
-      description: "Added to your withdrawable balance.",
-      rows: [
-        { label: "Package", value: appliance?.name ?? "Package" },
-        { label: "Amount", value: etb(Math.round(amount)) },
-        { label: "Date", value: fmtDate(todayKey()) },
-      ],
+      title: "Income!",
+      amount: Math.round(amount),
+      label: appliance?.name ?? "Daily income",
     });
     void queryClient.invalidateQueries({ queryKey: walletQueryKey });
   };
@@ -124,13 +120,9 @@ function Page() {
     const result = actions.claimTeamCommission();
     if (result.ok) {
       setSuccess({
-        title: "Team commission claimed",
-        description: "Added to your withdrawable balance.",
-        rows: [
-          { label: "Rate applied", value: settings.dailyCommissionPercentByLevel.map((p) => `${p}%`).join(" · ") },
-          { label: "Amount", value: etb(result.amount) },
-          { label: "Date", value: fmtDate(todayKey()) },
-        ],
+        title: "Income!",
+        amount: Math.round(result.amount),
+        label: "Team commission",
       });
     } else if (result.reason === "already-claimed") {
       toast("Already claimed today", { description: "Your next team commission unlocks tomorrow." });
@@ -277,19 +269,12 @@ function Page() {
         </Section>
       )}
 
-      <SuccessModal
+      <IncomeSuccessModal
         open={success !== null}
         onOpenChange={(open) => { if (!open) setSuccess(null); }}
-        title={success?.title ?? "Success"}
-        description={success?.description}
-        badge="Completed"
-        rows={success?.rows}
-        footer={
-          <>
-            <button onClick={() => setSuccess(null)} className="press rounded-xl bg-secondary py-3 font-bold">Done</button>
-            <Link to="/wallet" onClick={() => setSuccess(null)} className="press rounded-xl bg-accent py-3 text-center font-bold text-accent-foreground">View wallet</Link>
-          </>
-        }
+        title={success?.title ?? "Income!"}
+        amount={success?.amount ?? 0}
+        label={success?.label}
       />
     </div>
   );
