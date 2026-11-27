@@ -8,6 +8,9 @@ export const queryKeys = {
   purchases: (userId: string) => ["purchases", userId] as const,
   dailyClaims: (userId: string) => ["daily-claims", userId] as const,
   teamCommission: ["team-commission"] as const,
+  luckyWheelSpins: (userId: string) => ["lucky-wheel-spins", userId] as const,
+  luckyWheelJackpot: (userId: string) =>
+    ["lucky-wheel-jackpot", userId] as const,
   platformSettings: ["platform-settings"] as const,
   withdrawalSecurity: ["withdrawal-security"] as const,
 };
@@ -50,7 +53,9 @@ export function useProfile(userId: string | null) {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id,member_id,phone,role,wallet_balance,referral_code,payout_account,created_at")
+        .select(
+          "id,member_id,phone,role,wallet_balance,referral_code,payout_account,created_at",
+        )
         .eq("id", userId!)
         .maybeSingle();
       return (data ?? null) as ProfileRow | null;
@@ -135,7 +140,7 @@ export type PlatformSettings = Record<string, string>;
 export function usePlatformSettings(keys?: string[]) {
   return useQuery({
     queryKey: keys?.length
-      ? [...queryKeys.platformSettings, keys.join(",")] as const
+      ? ([...queryKeys.platformSettings, keys.join(",")] as const)
       : queryKeys.platformSettings,
     queryFn: async () => {
       let query = supabase.from("platform_settings").select("key,value");
@@ -143,7 +148,10 @@ export function usePlatformSettings(keys?: string[]) {
       const { data, error } = await query;
       if (error) throw error;
       return Object.fromEntries(
-        (data ?? []).map((row) => [String(row.key), String(row.value ?? "").trim()]),
+        (data ?? []).map((row) => [
+          String(row.key),
+          String(row.value ?? "").trim(),
+        ]),
       ) as PlatformSettings;
     },
     staleTime: 5 * 60_000,
@@ -177,7 +185,9 @@ export function useWithdrawalSecurityStatus() {
       }
 
       // Fallback for databases that only have the original password RPC.
-      const { data: legacy, error: legacyError } = await supabase.rpc("has_withdrawal_password");
+      const { data: legacy, error: legacyError } = await supabase.rpc(
+        "has_withdrawal_password",
+      );
       if (legacyError) throw legacyError;
       return {
         hasPassword: legacy === true,
@@ -187,6 +197,56 @@ export function useWithdrawalSecurityStatus() {
     },
     staleTime: 60_000,
     gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export type LuckyWheelSpinsStatus = {
+  available: number;
+  error: string | null;
+  unavailable: boolean;
+};
+
+/** Earned spins for the signed-in member. Errors resolve to zero so no free spin is offered. */
+export function useLuckyWheelSpins(userId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.luckyWheelSpins(userId ?? "anon"),
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<LuckyWheelSpinsStatus> => {
+      const { data, error } = await supabase.rpc("lucky_wheel_spins_available");
+      if (error) {
+        return {
+          available: 0,
+          error: error.message,
+          unavailable: missingRpc(error.message),
+        };
+      }
+      return {
+        available: Math.max(0, Number(data) || 0),
+        error: null,
+        unavailable: false,
+      };
+    },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** ETB 2,000 is reserved for locked-package / upper-tier VIP members. */
+export function useLuckyWheelJackpot(userId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.luckyWheelJackpot(userId ?? "anon"),
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "lucky_wheel_jackpot_unlocked",
+      );
+      if (error) return false;
+      return data === true;
+    },
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
   });
 }
