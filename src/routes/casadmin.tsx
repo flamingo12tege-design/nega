@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { dailyCommission } from "@/lib/referral";
 import { etb, fmtDate, fmtDateTime } from "@/lib/format";
-import { rewardRules } from "@/lib/mock-data";
+import { defaultNewsImage, rewardRules } from "@/lib/mock-data";
 import { actions, useReferral, useStore } from "@/lib/store";
 import type { AdminUser } from "@/lib/mock-data";
 import { Logo } from "@/components/cas/Logo";
@@ -1134,7 +1134,29 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 </div>
                 <textarea value={newsDraft.body} onChange={(e) => setNewsDraft({ ...newsDraft, body: e.target.value })} placeholder="Article body" rows={3} className="mt-2 w-full rounded-xl border bg-surface px-4 py-2.5" />
                 <button
-                  onClick={() => { if (!actions.addNews(newsDraft)) { toast.error("Enter a title and body"); return; } void logAdmin("news.published", { type: "news", metadata: { title: newsDraft.title } }); setNewsDraft({ title: "", tag: "", body: "" }); toast.success("News published"); }}
+                  onClick={async () => {
+                    const title = newsDraft.title.trim();
+                    const body = newsDraft.body.trim();
+                    const tag = newsDraft.tag.trim() || "Announcement";
+                    if (!title || !body) { toast.error("Enter a title and body"); return; }
+                    const { data, error } = await supabase.from("news").insert({ title, body, tag }).select("id,title,body,tag,image_url,created_at").single();
+                    if (error) {
+                      toast.error("Could not publish news", { description: error.message });
+                      return;
+                    }
+                    const row = data as { id: string; title: string; body: string; tag: string; image_url: string | null; created_at: string };
+                    actions.setNews([{
+                      id: String(row.id),
+                      title: String(row.title),
+                      body: String(row.body),
+                      tag: String(row.tag ?? "Announcement"),
+                      image: row.image_url ? String(row.image_url) : defaultNewsImage,
+                      date: String(row.created_at ?? "").slice(0, 10),
+                    }, ...news]);
+                    void logAdmin("news.published", { type: "news", id: String(row.id), metadata: { title } });
+                    setNewsDraft({ title: "", tag: "", body: "" });
+                    toast.success("News published");
+                  }}
                   className="press mt-3 flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground"><Plus className="h-4 w-4" />Publish</button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1142,7 +1164,13 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   <div key={n.id} className={`${card} flex items-start gap-3`}>
                     <img src={n.image} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
                     <div className="min-w-0 flex-1"><p className="truncate font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.tag} · {fmtDate(n.date)}</p></div>
-                    <button onClick={() => { actions.removeNews(n.id); void logAdmin("news.removed", { type: "news", id: n.id, metadata: { title: n.title } }); toast("News removed"); }} aria-label={`Remove ${n.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    <button onClick={async () => {
+                      const { error } = await supabase.from("news").delete().eq("id", n.id);
+                      if (error) { toast.error("Could not remove news", { description: error.message }); return; }
+                      actions.removeNews(n.id);
+                      void logAdmin("news.removed", { type: "news", id: n.id, metadata: { title: n.title } });
+                      toast("News removed");
+                    }} aria-label={`Remove ${n.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-destructive"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 ))}
               </div>

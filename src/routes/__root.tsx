@@ -20,7 +20,7 @@ import { WelcomeModal } from "@/components/cas/WelcomeModal";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { actions, useStore } from "@/lib/store";
-import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-data";
+import { appliances as seedAppliances, defaultNewsImage, defaultPackageImage } from "@/lib/mock-data";
 import { WELCOME_QUEUED_EVENT, clearQueuedWelcome, getQueuedWelcome, type QueuedWelcome } from "@/lib/welcome";
 import { queryKeys } from "@/lib/queries";
 import { walletQueryKey } from "@/lib/use-supabase-wallet";
@@ -256,6 +256,21 @@ function RootComponent() {
             details: Array.isArray(row.details) ? row.details : seed?.details ?? ["CAS appliance package"],
           };
         }));
+      }
+
+      const { data: newsData } = await supabase
+        .from("news")
+        .select("id,title,body,tag,image_url,created_at")
+        .order("created_at", { ascending: false });
+      if (Array.isArray(newsData)) {
+        actions.setNews(newsData.map((row) => ({
+          id: String(row.id),
+          title: String(row.title ?? ""),
+          body: String(row.body ?? ""),
+          tag: String(row.tag ?? "Announcement"),
+          image: row.image_url ? String(row.image_url) : defaultNewsImage,
+          date: String(row.created_at ?? "").slice(0, 10),
+        })));
       }
     };
 

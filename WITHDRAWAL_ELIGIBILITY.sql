@@ -64,7 +64,7 @@ as $wd$
           and status = 'pending'
       ), 0)
     ),
-    300;
+    50;
 $wd$;
 
 revoke all on function public.withdraw_eligibility() from public;
@@ -156,11 +156,12 @@ begin
 
   v_available := greatest(0, v_earned - v_pending);
 
-  if v_available < 300 then
-    raise exception 'Withdrawals unlock at ETB 300 of earned income';
+  -- Minimum earned income / minimum withdrawal amount.
+  if v_available < 50 then
+    raise exception 'Withdrawals unlock at ETB 50 of earned income';
   end if;
-  if v_amount < 300 then
-    raise exception 'Minimum withdrawal is ETB 300';
+  if v_amount < 50 then
+    raise exception 'Minimum withdrawal is ETB 50';
   end if;
   if v_amount > v_available then
     raise exception 'Amount exceeds your withdrawable income';

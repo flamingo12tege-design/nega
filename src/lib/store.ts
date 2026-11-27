@@ -252,4 +252,5 @@ export const actions = {
   setPayoutAccount: (account: string) => set((s) => ({ ...s, payoutAccount: account })),
   setLoggedIn: (v: boolean) => set((s) => ({ ...s, loggedIn: v })),
   setPackages: (packages: Appliance[]) => set((s) => ({ ...s, packages, lockedIds: packages.filter((p) => p.tier >= 5).map((p) => p.id) })),
+  setNews: (news: NewsItem[]) => set((s) => ({ ...s, news })),
 };

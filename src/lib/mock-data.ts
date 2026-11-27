@@ -17,7 +17,7 @@ export type Appliance = { id: string; tier: number; name: string; price: number;
 
 export const rewardRules = {
   registrationBonus: 300,
-  minimumWithdrawal: 300,
+  minimumWithdrawal: 50,
   withdrawalFeePercent: 10,
   /** Each active package pays daily income for this many days. */
   packageDurationDays: 45,

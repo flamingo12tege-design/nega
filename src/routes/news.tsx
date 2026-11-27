@@ -16,7 +16,11 @@ function Page() {
     <div>
       <PageHeader title="News" subtitle="Announcements & updates" back />
       <div className="-mt-4 grid gap-4 px-5 sm:grid-cols-2">
-        {news.map((n) => (
+        {news.length === 0 ? (
+          <div className="rounded-2xl bg-card p-6 text-center text-sm text-muted-foreground shadow-card sm:col-span-2">
+            No news yet. Announcements published by admin will appear here.
+          </div>
+        ) : news.map((n) => (
           <article key={n.id} className="overflow-hidden rounded-2xl bg-card shadow-card">
             <img src={n.image} alt="" loading="lazy" className="aspect-video w-full object-cover" />
             <div className="p-4">
