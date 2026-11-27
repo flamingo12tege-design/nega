@@ -23,21 +23,34 @@ as $dep$
 declare
   v_amount numeric;
   v_user_id uuid;
+  v_ref text;
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
   end if;
 
-  for v_user_id, v_amount in
-    select user_id, amount
+  for v_user_id, v_amount, v_ref in
+    select user_id, amount, transaction_ref
     from public.wallet_ledger
     where id = p_ledger_id
+      and user_id = auth.uid()
       and type = 'recharge'
       and status = 'pending'
       and transaction_ref is not null
       and btrim(transaction_ref) <> ''
     for update
   loop
+    -- A verified CBE reference can only approve one deposit.
+    if exists (
+      select 1 from public.wallet_ledger l
+      where l.type = 'recharge'
+        and l.id <> p_ledger_id
+        and lower(coalesce(l.status, '')) <> 'rejected'
+        and l.transaction_ref = v_ref
+    ) then
+      raise exception 'This transaction reference was already used';
+    end if;
+
     update public.wallet_ledger
     set status = 'completed'
     where id = p_ledger_id;

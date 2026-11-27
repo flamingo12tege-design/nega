@@ -135,31 +135,24 @@ function Page() {
     }
 
     if (data.user) {
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: data.user.id,
-        member_id: generatedMemberId,
-        phone,
-        role: "user",
-        wallet_balance: 0,
-        referral_code: referralCode,
-      });
-
-      if (profileError) {
-        setErr({ phone: profileError.message });
-        toast.error("Could not save your profile", { description: profileError.message });
-        return;
-      }
-
-      // Credit the ETB 300 welcome bonus.
-      const { data: bonus, error: bonusError } = await supabase.rpc("claim_registration_bonus");
-      const credited = !bonusError && Number(bonus ?? 0) > 0;
       const signedIn = Boolean(data.session);
+      let credited = false;
+
+      // handle_new_user() owns the profile row using the auth metadata above.
+      // The welcome bonus can only be claimed once a session exists.
+      if (signedIn) {
+        const { data: bonus, error: bonusError } = await supabase.rpc("claim_registration_bonus");
+        if (bonusError) {
+          toast.error("Welcome bonus is pending", { description: bonusError.message });
+        }
+        credited = !bonusError && Number(bonus ?? 0) > 0;
+      }
 
       // The root layout owns the announcement and shows it on the homepage.
       queueWelcome({ credited, memberId: generatedMemberId, signedIn });
 
       if (!signedIn) {
-        toast.success("Account created", { description: "Log in to see your welcome bonus." });
+        toast.success("Account created", { description: "Log in to claim your welcome bonus." });
         navigate({ to: "/login" });
       }
     }

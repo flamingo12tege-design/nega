@@ -40,14 +40,15 @@ function Page() {
   const claimsQuery = useDailyClaims(userId);
   const storedClaims = useStore((s) => s.claims);
   const liveClaims = useMemo<DailyClaim[] | null>(() => {
-    if (!purchasesQuery.data && !claimsQuery.data) return null;
+    if (!claimsQuery.isSuccess) return null;
     return (claimsQuery.data ?? []).map((row) => ({
       id: row.id,
       purchaseId: String(row.reference_id ?? ""),
-      date: todayKey(new Date(row.created_at ?? Date.now())),
+      // claim_date is stored in EAT by CLAIM_DAILY_INCOME.sql.
+      date: row.claim_date ?? todayKey(new Date(row.created_at ?? Date.now())),
       amount: Number(row.amount) || 0,
     }));
-  }, [claimsQuery.data, purchasesQuery.data]);
+  }, [claimsQuery.data, claimsQuery.isSuccess]);
   const claims = liveClaims ?? storedClaims;
   const [claiming, setClaiming] = useState<string | null>(null);
   const tasks = useStore((s) => s.tasks);
@@ -55,25 +56,39 @@ function Page() {
   const { dailyCommission, commissionClaimedToday, settings, vip } = useReferral();
   const claimedToday = claims.filter((c) => c.date === todayKey()).length;
 
-  const purchases = (purchasesQuery.data && purchasesQuery.data.length > 0)
+  const purchases = useMemo(() => (purchasesQuery.data && purchasesQuery.data.length > 0)
     ? purchasesQuery.data.map((p) => ({
         id: p.id,
         applianceId: p.package_id,
         method: "Wallet balance",
-        status: p.status === "approved" ? "Approved" : "Pending",
+        status: /approved|completed/i.test(String(p.status ?? "")) ? "Approved" : "Pending",
         date: p.created_at,
       }))
-    : storedPurchases;
+    : storedPurchases, [purchasesQuery.data, storedPurchases]);
 
-  const packages = purchases.flatMap((purchase) => {
-    const appliance = allPackages.find((a) => a.id === purchase.applianceId);
-    return appliance ? [{ purchase, appliance }] : [];
-  });
+  const packages = useMemo(() => {
+    const byId = new Map(allPackages.map((a) => [a.id, a]));
+    return purchases.flatMap((purchase) => {
+      const appliance = byId.get(purchase.applianceId);
+      return appliance ? [{ purchase, appliance }] : [];
+    });
+  }, [purchases, allPackages]);
+
+  const claimsByPurchase = useMemo(() => {
+    const map = new Map<string, DailyClaim[]>();
+    for (const claim of claims) {
+      const list = map.get(claim.purchaseId) ?? [];
+      list.push(claim);
+      map.set(claim.purchaseId, list);
+    }
+    return map;
+  }, [claims]);
+
   const active = packages.filter(({ purchase }) => purchase.status === "Approved");
   const pending = packages.filter(({ purchase }) => purchase.status === "Pending");
   const claimable = active.reduce(
     (sum, { purchase, appliance }) =>
-      claimStatus(claims, purchase.id, rewardRules.packageDurationDays) === "claimable"
+      claimStatus(claimsByPurchase.get(purchase.id) ?? [], purchase.id, rewardRules.packageDurationDays) === "claimable"
         ? sum + Math.round(appliance.dailyPayout)
         : sum,
     commissionClaimedToday ? 0 : Math.round(dailyCommission),
@@ -107,7 +122,11 @@ function Page() {
 
     const amount = Number(data) || 0;
     const appliance = allPackages.find((a) => a.id === applianceId);
-    if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.dailyClaims(userId) });
+    if (userId) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dailyClaims(userId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profile(userId) });
+    }
+    void queryClient.invalidateQueries({ queryKey: queryKeys.teamCommission });
     setSuccess({
       title: "Income!",
       amount: Math.round(amount),
@@ -139,6 +158,8 @@ function Page() {
       label: "Team commission",
     });
     void queryClient.invalidateQueries({ queryKey: walletQueryKey });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.teamCommission });
+    if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.profile(userId) });
   };
 
   const act = (id: string, status: TaskStatus, reward?: number, taskTitle?: string) => {
@@ -181,8 +202,9 @@ function Page() {
         ) : (
           <div className="space-y-3">
             {active.map(({ purchase, appliance }) => {
-              const status = claimStatus(claims, purchase.id, rewardRules.packageDurationDays);
-              const days = claimedDays(claims, purchase.id);
+              const ownClaims = claimsByPurchase.get(purchase.id) ?? [];
+              const status = claimStatus(ownClaims, purchase.id, rewardRules.packageDurationDays);
+              const days = claimedDays(ownClaims, purchase.id);
               const earned = days * Math.round(appliance.dailyPayout);
               const pct = Math.min(100, (days / rewardRules.packageDurationDays) * 100);
               return (

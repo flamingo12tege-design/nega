@@ -7,6 +7,9 @@ export const queryKeys = {
   profile: (userId: string) => ["profile", userId] as const,
   purchases: (userId: string) => ["purchases", userId] as const,
   dailyClaims: (userId: string) => ["daily-claims", userId] as const,
+  teamCommission: ["team-commission"] as const,
+  platformSettings: ["platform-settings"] as const,
+  withdrawalSecurity: ["withdrawal-security"] as const,
 };
 
 export function useSessionUser() {
@@ -96,6 +99,7 @@ export type DailyClaimRow = {
   id: string;
   amount: number;
   created_at: string;
+  claim_date: string | null;
   reference_id: string | null;
 };
 
@@ -106,19 +110,83 @@ export function useDailyClaims(userId: string | null) {
     queryFn: async () => {
       const { data } = await supabase
         .from("wallet_ledger")
-        .select("id,amount,created_at,reference_id")
+        .select("id,amount,created_at,claim_date,reference_id")
         .eq("user_id", userId!)
         .eq("type", "daily_income")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
       return (data ?? []).map((row) => ({
         id: String(row.id),
         amount: Number(row.amount) || 0,
         created_at: String(row.created_at ?? ""),
+        claim_date: row.claim_date ? String(row.claim_date) : null,
         reference_id: row.reference_id ? String(row.reference_id) : null,
       })) as DailyClaimRow[];
     },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export type PlatformSettings = Record<string, string>;
+
+/** Cached platform settings. Rules change rarely, so avoid a query per page mount. */
+export function usePlatformSettings(keys?: string[]) {
+  return useQuery({
+    queryKey: keys?.length
+      ? [...queryKeys.platformSettings, keys.join(",")] as const
+      : queryKeys.platformSettings,
+    queryFn: async () => {
+      let query = supabase.from("platform_settings").select("key,value");
+      if (keys?.length) query = query.in("key", keys);
+      const { data, error } = await query;
+      if (error) throw error;
+      return Object.fromEntries(
+        (data ?? []).map((row) => [String(row.key), String(row.value ?? "").trim()]),
+      ) as PlatformSettings;
+    },
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export type WithdrawalSecurityStatus = {
+  hasPassword: boolean;
+  hasKeywords: boolean;
+  unavailable: boolean;
+};
+
+const missingRpc = (message: string) =>
+  /could not find the function|does not exist|not found/i.test(message);
+
+/** Shared security-status cache for Profile settings and the withdraw form. */
+export function useWithdrawalSecurityStatus() {
+  return useQuery({
+    queryKey: queryKeys.withdrawalSecurity,
+    queryFn: async (): Promise<WithdrawalSecurityStatus> => {
+      const { data, error } = await supabase.rpc("withdrawal_security_status");
+      if (!error) {
+        const row = Array.isArray(data) ? data[0] : data;
+        return {
+          hasPassword: row?.has_password === true,
+          hasKeywords: row?.has_keywords === true,
+          unavailable: false,
+        };
+      }
+
+      // Fallback for databases that only have the original password RPC.
+      const { data: legacy, error: legacyError } = await supabase.rpc("has_withdrawal_password");
+      if (legacyError) throw legacyError;
+      return {
+        hasPassword: legacy === true,
+        hasKeywords: false,
+        unavailable: missingRpc(error.message),
+      };
+    },
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
   });
 }

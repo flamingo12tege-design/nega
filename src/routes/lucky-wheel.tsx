@@ -50,13 +50,15 @@ function Page() {
   const loadWinners = async () => {
     const { data, error } = await supabase.rpc("get_lucky_wheel_winners");
     if (error || !Array.isArray(data)) return;
-    setWinners(data.map((row) => ({
-      id: String(row["id"] ?? ""),
-      member_id: row["member_id"] ? String(row["member_id"]) : null,
-      prize: String(row["prize"] ?? ""),
-      amount: Number(row["amount"]) || 0,
-      created_at: String(row["created_at"] ?? ""),
-    })));
+    setWinners(data
+      .filter((row) => Number(row["amount"]) > 0)
+      .map((row) => ({
+        id: String(row["id"] ?? ""),
+        member_id: row["member_id"] ? String(row["member_id"]) : null,
+        prize: String(row["prize"] ?? ""),
+        amount: Number(row["amount"]) || 0,
+        created_at: String(row["created_at"] ?? ""),
+      })));
   };
 
   useEffect(() => { void loadWinners(); }, []);
@@ -97,10 +99,10 @@ function Page() {
       const prize = segments[index]?.label ?? "Try again";
       setResult(prize);
 
-      // Record the win so it appears in the public winners list.
-      const amount = prize.startsWith("ETB") ? Number(prize.replace(/\D/g, "")) : 0;
+      // Record the win so it appears in the public winners list. The server
+      // derives the amount from the label; the client cannot inflate it.
       void supabase
-        .rpc("record_lucky_wheel_win", { p_prize_label: prize, p_amount: amount })
+        .rpc("record_lucky_wheel_win", { p_prize_label: prize })
         .then(() => loadWinners());
     };
   };

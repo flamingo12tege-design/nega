@@ -38,6 +38,7 @@ insert into public.platform_settings (key, value) values
   ('team_commission_level2_percent', '3'),
   ('team_commission_level3_percent', '1'),
   ('team_commission_duration_days', '45')
-on conflict (key) do update set value = excluded.value, updated_at = now();
+-- Seed only: re-running this file must never overwrite admin-edited rules.
+on conflict (key) do nothing;
 
 notify pgrst, 'reload schema';

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Check, LockKeyhole } from "lucide-react";
@@ -8,37 +8,39 @@ import { rewardRules } from "@/lib/mock-data";
 import { actions, minimumRechargeAmount, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { saveWithdrawalReceipt } from "@/lib/withdrawal-receipt";
+import { useWithdrawalSecurityStatus } from "@/lib/queries";
 
 const methods = ["CBE"];
 
-export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Withdraw"; max?: number; payoutAccount?: string }) {
+export function MoneyForm({
+  kind,
+  max,
+  payoutAccount,
+  minimumWithdrawal = rewardRules.minimumWithdrawal,
+}: {
+  kind: "Recharge" | "Withdraw";
+  max?: number;
+  payoutAccount?: string;
+  minimumWithdrawal?: number;
+}) {
   const navigate = useNavigate();
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("CBE");
   const [account, setAccount] = useState(payoutAccount ?? "");
   const [withdrawPassword, setWithdrawPassword] = useState("");
-  const [needsPassword, setNeedsPassword] = useState(false);
+  const security = useWithdrawalSecurityStatus();
+  const needsPassword = kind === "Withdraw" && security.data?.hasPassword === true;
 
-  // Security setting: when the member set a withdrawal password, it is
-  // required on every withdrawal request.
-  useEffect(() => {
-    if (kind !== "Withdraw") return;
-    let active = true;
-    const load = async () => {
-      const { data, error } = await supabase.rpc("has_withdrawal_password");
-      if (!active || error) return;
-      setNeedsPassword(data === true);
-    };
-    void load();
-    return () => { active = false; };
-  }, [kind]);
   const saveAccount = async () => {
     if (!/^\d{13}$/.test(account)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
     // Persist to the profile so the account survives reloads and is available
     // when the admin processes the withdrawal.
     const { error } = await supabase.rpc("set_payout_account", { p_account: account });
-    if (error && !/could not find the function|does not exist/i.test(error.message)) {
-      toast.error("Could not save bank account", { description: error.message });
+    if (error) {
+      const detail = /could not find the function|does not exist/i.test(error.message)
+        ? "Run REQUEST_WITHDRAWAL.sql in Supabase to enable saved accounts."
+        : error.message;
+      toast.error("Could not save bank account", { description: detail });
       return;
     }
     actions.setPayoutAccount(account);
@@ -51,19 +53,20 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
     () => Array.from(new Set(packages.map((p) => Number(p.price)).filter((v) => Number.isFinite(v) && v > 0))).sort((a, b) => a - b),
     [packages],
   );
-  const minimumAmount = kind === "Withdraw" ? rewardRules.minimumWithdrawal : minPackageAmount;
+  const minimumAmount = kind === "Withdraw" ? minimumWithdrawal : minPackageAmount;
   const amountLabel = kind === "Withdraw" ? "withdrawal" : "recharge";
-  const fee = kind === "Withdraw" ? (n * rewardRules.withdrawalFeePercent) / 100 : 0;
+  // The RPC rounds the fee to whole birr; keep the UI identical.
+  const fee = kind === "Withdraw" ? Math.round((n * rewardRules.withdrawalFeePercent) / 100) : 0;
   // Withdrawals: chips must never exceed what the member can actually take out.
   const withdrawQuick = useMemo(() => {
     const cap = max ?? Infinity;
-    const list = [rewardRules.minimumWithdrawal, 500, 1000, 5000].filter((v) => v <= cap);
+    const list = [minimumWithdrawal, 500, 1000, 5000].filter((v) => v <= cap);
     if (list.length < 4) {
       const remainder = Math.floor(cap);
       if (remainder >= minimumAmount && !list.includes(remainder)) list.push(remainder);
     }
     return list.slice(0, 4);
-  }, [max, minimumAmount]);
+  }, [max, minimumAmount, minimumWithdrawal]);
   const quickAmounts = kind === "Withdraw"
     ? withdrawQuick
     : (packagePrices.length > 0 ? packagePrices : [minPackageAmount]);
@@ -85,7 +88,11 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
 
       if (error) {
         const message = error.message;
-        if (/withdrawal password/i.test(message)) {
+        if (/enter your withdrawal password/i.test(message)) {
+          toast.error("Enter your withdrawal password", { description: "It is required because you enabled it in Profile → Security Settings." });
+          return;
+        }
+        if (/incorrect withdrawal password/i.test(message)) {
           toast.error("Incorrect withdrawal password", { description: "Check it in Profile → Security Settings." });
           return;
         }

@@ -131,6 +131,13 @@ as $cas$
 declare
   v_row public.wallet_ledger%rowtype;
   v_balance numeric;
+  v_fee_percent numeric := coalesce((
+    select nullif(value, '')::numeric
+    from public.platform_settings
+    where key = 'withdrawal_fee_percent'
+  ), 10);
+  v_fee numeric;
+  v_net numeric;
   v_found boolean := false;
 begin
   if not public.is_admin() then
@@ -158,6 +165,11 @@ begin
       raise exception 'Insufficient balance';
     end if;
 
+    -- The member is debited the requested gross amount; CAS keeps the fee and
+    -- the admin pays out the net amount.
+    v_fee := round(abs(v_row.amount) * v_fee_percent / 100);
+    v_net := abs(v_row.amount) - v_fee;
+
     update public.profiles
     set wallet_balance = wallet_balance - abs(v_row.amount)
     where id = v_row.user_id;
@@ -172,13 +184,18 @@ begin
         'wallet_ledger',
         p_ledger_id::text,
         null,
-        jsonb_build_object('amount', abs(v_row.amount), 'user_id', v_row.user_id)
+        jsonb_build_object(
+          'amount', abs(v_row.amount),
+          'fee', v_fee,
+          'payout', v_net,
+          'user_id', v_row.user_id
+        )
       );
     exception when others then
       null;
     end;
 
-    return abs(v_row.amount);
+    return v_net;
   end loop;
 
   raise exception 'Withdrawal already processed or not found';

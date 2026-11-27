@@ -1,46 +1,26 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ShieldCheck, KeyRound, X, Eye, EyeOff, Check, Trash2, Loader2, LockKeyhole, HelpCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useWithdrawalSecurityStatus } from "@/lib/queries";
 
 const missingRpc = (message: string) => /could not find the function|does not exist|not found/i.test(message);
 
 type SecurityStatus = { hasPassword: boolean | null; hasKeywords: boolean | null; unavailable: boolean };
 
-/** Withdrawal password and recovery keyword status for the signed-in member. */
+/** Cached withdrawal password and recovery keyword status for the signed-in member. */
 export function useWithdrawalPasswordStatus() {
-  const [status, setStatus] = useState<SecurityStatus>({
-    hasPassword: null,
-    hasKeywords: null,
-    unavailable: false,
-  });
+  const query = useWithdrawalSecurityStatus();
+  const status: SecurityStatus = query.isLoading
+    ? { hasPassword: null, hasKeywords: null, unavailable: false }
+    : {
+        hasPassword: query.data?.hasPassword ?? false,
+        hasKeywords: query.data?.hasKeywords ?? false,
+        unavailable: query.data?.unavailable ?? false,
+      };
 
-  const refresh = useCallback(async () => {
-    const { data, error } = await supabase.rpc("withdrawal_security_status");
-    if (error) {
-      // Fallback for databases that only have the original password RPC.
-      const { data: legacy } = await supabase.rpc("has_withdrawal_password");
-      setStatus({
-        hasPassword: legacy === true,
-        hasKeywords: false,
-        unavailable: missingRpc(error.message),
-      });
-      return;
-    }
-    const row = Array.isArray(data) ? data[0] : data;
-    setStatus({
-      hasPassword: row?.has_password === true,
-      hasKeywords: row?.has_keywords === true,
-      unavailable: false,
-    });
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  return { ...status, refresh };
+  return { ...status, refresh: async () => { await query.refetch(); } };
 }
 
 /**
@@ -67,6 +47,7 @@ export function SecuritySettings({
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [keywords, setKeywords] = useState(["", "", ""]);
+  const [keywordsDirty, setKeywordsDirty] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [recoverKeywords, setRecoverKeywords] = useState(["", "", ""]);
   const [recoverNext, setRecoverNext] = useState("");
@@ -84,6 +65,7 @@ export function SecuritySettings({
       setNext("");
       setConfirm("");
       setKeywords(["", "", ""]);
+      setKeywordsDirty(false);
       setRecovering(false);
       setRecoverKeywords(["", "", ""]);
       setRecoverNext("");
@@ -110,7 +92,8 @@ export function SecuritySettings({
     const { error } = await supabase.rpc("set_withdrawal_security", {
       p_password: next ? next : null,
       p_current_password: enabled ? current : null,
-      p_keywords: keywords,
+      // null means "keep the existing keywords" in the SQL function.
+      p_keywords: keywordsDirty ? keywords : null,
     });
     setBusy(false);
 
@@ -125,6 +108,8 @@ export function SecuritySettings({
     setCurrent("");
     setNext("");
     setConfirm("");
+    setKeywords(["", "", ""]);
+    setKeywordsDirty(false);
     await refresh();
     toast.success("Security settings saved", {
       description: enabled
@@ -148,6 +133,25 @@ export function SecuritySettings({
     setCurrent("");
     await refresh();
     toast.success("Withdrawal password removed", { description: "Your keywords were kept." });
+  };
+
+  const clearKeywords = async () => {
+    setBusy(true);
+    // An empty array explicitly clears keywords; null would keep them.
+    const { error } = await supabase.rpc("set_withdrawal_security", {
+      p_password: null,
+      p_current_password: null,
+      p_keywords: [],
+    });
+    setBusy(false);
+    if (error) {
+      toast.error("Could not clear recovery keywords", { description: error.message });
+      return;
+    }
+    setKeywords(["", "", ""]);
+    setKeywordsDirty(false);
+    await refresh();
+    toast.success("Recovery keywords cleared");
   };
 
   const recover = async () => {
@@ -278,8 +282,16 @@ export function SecuritySettings({
 
               <div className="space-y-2">
                 <p className="text-sm font-semibold">Recovery keywords <span className="text-xs font-normal text-muted-foreground">(2 or 3, optional)</span></p>
-                {keywordFields(keywords, (i, value) => setKeywords((prev) => prev.map((k, idx) => idx === i ? value : k)))}
-                <p className="text-[11px] text-muted-foreground">Used only to reset your withdrawal password if you forget it. Leave empty to clear them.</p>
+                {keywordFields(keywords, (i, value) => {
+                  setKeywordsDirty(true);
+                  setKeywords((prev) => prev.map((k, idx) => idx === i ? value : k));
+                })}
+                <p className="text-[11px] text-muted-foreground">Used only to reset your withdrawal password if you forget them. Saving without touching this field keeps your current keywords.</p>
+                {keywordsOn && (
+                  <button type="button" onClick={() => void clearKeywords()} disabled={busy} className="text-xs font-bold text-destructive disabled:opacity-50">
+                    Clear recovery keywords
+                  </button>
+                )}
               </div>
 
               <button

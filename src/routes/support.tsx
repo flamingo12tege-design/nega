@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Headset, Users, Megaphone, ExternalLink } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { usePlatformSettings } from "@/lib/queries";
 import { PageHeader } from "@/components/cas/AppShell";
 
 export const Route = createFileRoute("/support")({
@@ -22,13 +22,18 @@ type SupportChannels = {
   telegramChannel?: string;
 };
 
-function normalizeTelegramHref(value: string) {
+function normalizeServiceHref(value: string) {
   const raw = value.trim();
   if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(https?:\/\/|tel:|mailto:)/i.test(raw)) return raw;
+  const phone = raw.replace(/\D/g, "");
+  if (phone.length >= 9 && /^[\d\s()+-]+$/.test(raw)) return `tel:${phone}`;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return `mailto:${raw}`;
   const handle = raw.replace(/^@/, "");
   return handle ? `https://t.me/${handle}` : "";
 }
+
+const normalizeTelegramHref = normalizeServiceHref;
 
 function pickFirst(...values: Array<string | undefined>) {
   for (const value of values) {
@@ -39,57 +44,44 @@ function pickFirst(...values: Array<string | undefined>) {
 }
 
 function Page() {
-  const [channels, setChannels] = useState<SupportChannels>({});
+  const settings = usePlatformSettings([
+    "support_phone",
+    "support_whatsapp",
+    "support_telegram",
+    "support_telegram_group",
+    "support_telegram_channel",
+    "support_email",
+    "support_customer_service",
+  ]);
 
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const { data } = await supabase
-        .from("platform_settings")
-        .select("key,value")
-        .in("key", [
-          "support_phone",
-          "support_whatsapp",
-          "support_telegram",
-          "support_telegram_group",
-          "support_telegram_channel",
-          "support_email",
-          "support_customer_service",
-        ]);
+  const channels = useMemo<SupportChannels>(() => {
+    const values = settings.data ?? {};
 
-      if (!active) return;
+    const customerService = normalizeServiceHref(pickFirst(
+      values["support_customer_service"],
+      values["support_whatsapp"],
+      values["support_telegram"],
+      values["support_phone"],
+      values["support_email"],
+    ) ?? "");
 
-      const values = Object.fromEntries(
-        (data ?? []).map((row) => [String(row.key), String(row.value ?? "").trim()]),
-      );
+    const telegramChannel = normalizeTelegramHref(pickFirst(
+      values["support_telegram_channel"],
+      "https://t.me/CAS_Official_Channel03",
+    ) ?? "");
+    let telegramGroup = normalizeTelegramHref(pickFirst(
+      values["support_telegram_group"],
+      values["support_telegram"],
+    ) ?? "");
+    // Avoid showing the same link as both a group and a channel.
+    if (telegramGroup === telegramChannel) telegramGroup = "";
 
-      const customerService = pickFirst(
-        values["support_customer_service"],
-        values["support_whatsapp"] ? `https://wa.me/${values["support_whatsapp"].replace(/\D/g, "")}` : undefined,
-        values["support_telegram"],
-        values["support_phone"] ? `tel:${values["support_phone"].replace(/\s/g, "")}` : undefined,
-        values["support_email"] ? `mailto:${values["support_email"]}` : undefined,
-      );
-
-      const telegramGroup = pickFirst(values["support_telegram_group"], values["support_telegram"]);
-      const telegramChannel = pickFirst(
-        values["support_telegram_channel"],
-        values["support_telegram"],
-        "https://t.me/CAS_Official_Channel03",
-      );
-
-      const next: SupportChannels = {};
-      if (customerService) next.customerService = customerService;
-      if (telegramGroup) next.telegramGroup = telegramGroup;
-      if (telegramChannel) next.telegramChannel = telegramChannel;
-      setChannels(next);
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
-  }, []);
+    const next: SupportChannels = {};
+    if (customerService) next.customerService = customerService;
+    if (telegramGroup) next.telegramGroup = telegramGroup;
+    if (telegramChannel) next.telegramChannel = telegramChannel;
+    return next;
+  }, [settings.data]);
 
   const items = [
     {

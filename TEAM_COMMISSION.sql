@@ -129,19 +129,20 @@ as $tc$
       ), 0) as daily_payout
     from ranked r
   )
-  select coalesce(sum(
+  select coalesce(round(sum(
     case m.level
       when 1 then m.daily_payout * p.l1 / 100
       when 2 then m.daily_payout * p.l2 / 100
       when 3 then m.daily_payout * p.l3 / 100
       else 0
     end
-  ), 0)
+  )), 0)
   from members m
   cross join me
   cross join params p
   where m.first_active is not null
-    and (now() at time zone 'utc')::date < (m.first_active at time zone 'utc')::date + p.duration
+    and (now() at time zone 'Africa/Addis_Ababa')::date
+      < (m.first_active at time zone 'Africa/Addis_Ababa')::date + p.duration
     and (m.vip < 1 or me.vip >= m.vip);
 $tc$;
 
@@ -154,7 +155,7 @@ set search_path = public
 as $tc$
 declare
   v_user_id uuid := auth.uid();
-  v_today date := (now() at time zone 'utc')::date;
+  v_today date := (now() at time zone 'Africa/Addis_Ababa')::date;
   v_amount numeric;
 begin
   if v_user_id is null then
@@ -168,7 +169,7 @@ begin
     raise exception 'Already claimed today';
   end if;
 
-  v_amount := public.team_commission_due();
+  v_amount := round(public.team_commission_due());
   if v_amount is null or v_amount <= 0 then
     raise exception 'No team commission due';
   end if;
@@ -219,7 +220,7 @@ begin
   end if;
 
   v_rate := coalesce((select value::numeric from public.platform_settings where key = 'invite_reward_percent'), 10);
-  v_bonus := round(coalesce(new.amount, 0) * v_rate / 100, 2);
+  v_bonus := round(coalesce(new.amount, 0) * v_rate / 100);
   if v_bonus <= 0 then
     return new;
   end if;

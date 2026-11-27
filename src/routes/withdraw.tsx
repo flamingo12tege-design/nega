@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -50,17 +50,32 @@ const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 /** Daily returns are shown as whole birr everywhere else in CAS — do the same here. */
 const birr = (n: number) => etb(Math.round(Number(n) || 0));
 
-/** Wall-clock time in East Africa Time (UTC+3), the CAS operating timezone. */
-function eatNow() {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" }));
+type EatClock = { day: number; hour: number; minute: number };
+
+/** Wall-clock parts in East Africa Time (UTC+3), the CAS operating timezone. */
+function eatNow(): EatClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Africa/Addis_Ababa",
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const weekdays: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    day: weekdays[values["weekday"] ?? ""] ?? 0,
+    hour: Number(values["hour"]) % 24,
+    minute: Number(values["minute"]) || 0,
+  };
 }
 
-function nextOpenText(now: Date) {
-  const day = now.getDay();
-  const hour = now.getHours() + now.getMinutes() / 60;
-  if (day === 0 || day === 6) return "Opens Monday at 3:00 AM";
+function nextOpenText(now: EatClock) {
+  const hour = now.hour + now.minute / 60;
+  if (now.day === 0) return "Opens Monday at 3:00 AM";
+  if (now.day === 6) return hour < OPEN_FROM ? "Opens today at 3:00 AM" : "Opens Monday at 3:00 AM";
   if (hour < OPEN_FROM) return "Opens today at 3:00 AM";
-  if (hour >= OPEN_TO) return day === 5 ? "Opens Monday at 3:00 AM" : "Opens tomorrow at 3:00 AM";
+  if (hour >= OPEN_TO) return now.day === 5 ? "Opens Monday at 3:00 AM" : "Opens tomorrow at 3:00 AM";
   return "";
 }
 
@@ -71,8 +86,8 @@ function OperatingWindow() {
     return () => clearInterval(id);
   }, []);
 
-  const today = DAY_ORDER[(now.getDay() + 6) % 7];
-  const hour = now.getHours() + now.getMinutes() / 60;
+  const today = DAY_ORDER[(now.day + 6) % 7];
+  const hour = now.hour + now.minute / 60;
   const closedDay = today === "Sun";
   const closedHours = hour < OPEN_FROM || hour >= OPEN_TO;
   const isOpen = !closedDay && !closedHours;
@@ -164,13 +179,17 @@ function Page() {
   const wallet = useSupabaseWallet();
   const payoutAccount = useStore((s) => s.payoutAccount);
   const [eligibility, setEligibility] = useState<Eligibility | null>(null);
+  const ledgerRef = useRef(wallet.ledger);
+
+  useEffect(() => { ledgerRef.current = wallet.ledger; }, [wallet.ledger]);
 
   useEffect(() => {
     const account = typeof profileQuery.data?.payout_account === "string" ? profileQuery.data.payout_account : "";
-    if (account) actions.setPayoutAccount(account);
+    actions.setPayoutAccount(account);
   }, [profileQuery.data?.payout_account]);
 
-  // Load withdrawal eligibility.
+  // Load withdrawal eligibility. Wallet totals change often; use scalar keys
+  // so a ledger refetch does not re-run this RPC on every render.
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -178,7 +197,7 @@ function Page() {
 
       const [{ data: rpcData, error: rpcError }, { data: purchases }] = await Promise.all([
         supabase.rpc("withdraw_eligibility"),
-        supabase.from("purchases").select("status").eq("user_id", userId),
+        supabase.from("purchases").select("status,created_at").eq("user_id", userId),
       ]);
 
       if (!active) return;
@@ -195,25 +214,35 @@ function Page() {
         return;
       }
 
-      // Fallback for databases where the RPC has not been run yet.
-      const earned = wallet.ledger
-        .filter((r) => r.status === "completed" && r.amount > 0 && !["recharge", "deposit"].includes(r.type))
+      // Fallback only for databases where the RPC has not been run yet.
+      const approved = (purchases ?? []).filter((p) => /approved|completed/i.test(String(p.status ?? "")));
+      const investedAt = approved.length > 0
+        ? Math.min(...approved.map((p) => new Date(p.created_at).getTime()))
+        : null;
+      const earnedTypes = new Set([
+        "daily_income", "team_commission", "recruitment_bonus",
+        "referral_bonus", "task_reward", "commission", "pay_income",
+      ]);
+      const earned = investedAt === null ? 0 : ledgerRef.current
+        .filter((r) => r.status === "completed"
+          && r.amount > 0
+          && earnedTypes.has(r.type)
+          && new Date(r.created_at).getTime() >= investedAt)
+        .reduce((sum, r) => sum + r.amount, 0);
+      const reserved = ledgerRef.current
+        .filter((r) => r.type === "withdrawal" && /pending|completed/i.test(r.status))
         .reduce((sum, r) => sum + Math.abs(r.amount), 0);
-      const pending = wallet.ledger
-        .filter((r) => r.type === "withdrawal" && r.status === "pending")
-        .reduce((sum, r) => sum + Math.abs(r.amount), 0);
-      const hasPackage = (purchases ?? []).some((p) => /approved|completed/i.test(String(p.status ?? "")));
       setEligibility({
-        has_package: hasPackage,
+        has_package: investedAt !== null,
         earned,
-        pending,
-        available: Math.max(0, earned - pending),
+        pending: reserved,
+        available: Math.max(0, earned - reserved),
         min_amount: rewardRules.minimumWithdrawal,
       });
     };
     void load();
     return () => { active = false; };
-  }, [userId, wallet.ledger]);
+  }, [userId, wallet.ledger.length, wallet.balance]);
 
   const available = eligibility?.available ?? 0;
   const minAmount = eligibility?.min_amount ?? rewardRules.minimumWithdrawal;
@@ -406,7 +435,7 @@ function Page() {
 
       {eligibility?.has_package && remaining <= 0 && (
         <div className="mt-10">
-          <MoneyForm kind="Withdraw" max={available} payoutAccount={payoutAccount} />
+          <MoneyForm kind="Withdraw" max={available} minimumWithdrawal={minAmount} payoutAccount={payoutAccount} />
         </div>
       )}
 

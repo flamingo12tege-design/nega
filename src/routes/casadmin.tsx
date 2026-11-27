@@ -31,6 +31,10 @@ type Tab = (typeof tabs)[number]["k"];
 
 const card = "rounded-2xl bg-card p-4 shadow-card";
 
+/** CAS keeps the fee; admins pay out the whole-birr net amount. */
+const withdrawalPayout = (gross: number) =>
+  Math.abs(gross) - Math.round(Math.abs(gross) * rewardRules.withdrawalFeePercent / 100);
+
 /** Friendly label for a raw audit action such as `deposit.approved`. */
 const auditActionLabel = (action: string) => {
   const labels: Record<string, string> = {
@@ -1292,7 +1296,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   ) : pendingWithdrawals.map((row) => (
                     <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold">{etb(Math.abs(row.amount))}</p>
+                        <p className="font-bold">{etb(Math.abs(row.amount))} <span className="text-xs font-semibold text-muted-foreground">· Pay {etb(withdrawalPayout(row.amount))}</span></p>
                         <p className="truncate text-xs text-muted-foreground">{row.description || "Withdrawal request"} · {fmtDate(row.created_at)}</p>
                       </div>
                       <div className="flex gap-2">

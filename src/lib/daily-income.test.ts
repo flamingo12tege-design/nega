@@ -10,8 +10,9 @@ const claim = (overrides: Partial<DailyClaim> = {}): DailyClaim => ({
 });
 
 describe("daily income", () => {
-  it("builds a local day key", () => {
-    expect(todayKey(new Date(2026, 10, 5))).toBe("2026-11-05");
+  it("builds an East Africa Time day key", () => {
+    expect(todayKey(new Date("2026-11-05T12:00:00Z"))).toBe("2026-11-05");
+    expect(todayKey(new Date("2026-11-05T22:30:00Z"))).toBe("2026-11-06");
   });
 
   it("is claimable when nothing was claimed yet", () => {

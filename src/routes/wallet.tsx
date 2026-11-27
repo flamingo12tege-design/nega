@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 import { etb, fmtDate } from "@/lib/format";
 import { PageHeader, Section } from "@/components/cas/AppShell";
@@ -15,26 +16,26 @@ function Page() {
   const purchasesQuery = usePurchases(userId);
   const wallet = useSupabaseWallet();
   const balance = wallet.balance;
-  const history = wallet.ledger.map((row) => ({
+  const history = useMemo(() => wallet.ledger.map((row) => ({
     id: row.id,
     type: row.type === "daily_income" ? "Daily income" : row.type === "team_commission" ? "Team commission" : row.type === "referral_bonus" || row.type === "recruitment_bonus" ? "Referral bonus" : row.type === "withdrawal" ? "Withdrawal" : "Wallet transaction",
     amount: row.amount,
     date: row.created_at,
     status: row.status,
-  }));
+  })), [wallet.ledger]);
   const livePurchases = purchasesQuery.data ?? [];
   return (
     <div>
       <PageHeader title="My Wallet" back />
       <div className="-mt-4 mx-5 rounded-3xl bg-card p-5 shadow-card">
-        <p className="text-xs text-muted-foreground">Available balance · withdrawable</p>
+        <p className="text-xs text-muted-foreground">Wallet balance</p>
         <p className="text-3xl font-extrabold text-primary">{etb(Math.round(balance))}</p>
         <div className="mt-4 grid grid-cols-3 gap-3 border-t pt-4">
-          <div><p className="text-xs text-muted-foreground">Available</p><p className="font-bold">{etb(Math.round(wallet.balance))}</p></div>
+          <div><p className="text-xs text-muted-foreground">Balance</p><p className="font-bold">{etb(Math.round(wallet.balance))}</p></div>
           <div><p className="text-xs text-muted-foreground">Team bonus</p><p className="font-bold">{etb(Math.round(wallet.teamBonus))}</p></div>
           <div><p className="text-xs text-muted-foreground">Pay income</p><p className="font-bold">{etb(Math.round(wallet.payIncome))}</p></div>
         </div>
-        <p className="mt-3 rounded-xl bg-muted p-3 text-xs text-muted-foreground">Bonuses are promotional credits and are kept separate from your withdrawable balance. Eligibility rules apply to each bonus type.</p>
+        <p className="mt-3 rounded-xl bg-muted p-3 text-xs text-muted-foreground">Only income earned after your first approved package is withdrawable. Deposits, gifts and welcome credits stay outside withdrawal eligibility.</p>
       </div>
       <Section title="My Purchases">
         <div className="divide-y overflow-hidden rounded-2xl bg-card shadow-card">

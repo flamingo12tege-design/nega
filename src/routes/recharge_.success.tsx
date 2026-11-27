@@ -9,6 +9,7 @@ export const Route = createFileRoute("/recharge_/success")({
     method: String(search["method"] ?? "CBE"),
     proof: search["proof"] === true || search["proof"] === "1" || search["proof"] === "true",
     txn: String(search["txn"] ?? ""),
+    approved: search["approved"] === true || search["approved"] === "1" || search["approved"] === "true",
   }),
   head: () => ({ meta: [{ title: "Recharge request submitted — CAS" }, { name: "description", content: "Your CAS recharge request has been submitted for review." }, { property: "og:title", content: "Recharge request submitted — CAS" }, { property: "og:description", content: "Your CAS recharge request has been submitted for review." }] }),
   component: Page,
@@ -27,24 +28,22 @@ function Row({ l, v }: { l: string; v: string }) {
 
 function Page() {
   const navigate = useNavigate();
-  const { amount, method, proof, txn } = Route.useSearch();
+  const { amount, method, proof, txn, approved } = Route.useSearch();
   const [seconds, setSeconds] = useState(REDIRECT_SECONDS);
   const proofLabel = [proof ? "Screenshot" : "", txn ? `Txn ${txn}` : ""].filter(Boolean).join(" · ");
   const progress = ((REDIRECT_SECONDS - seconds) / REDIRECT_SECONDS) * 100;
 
   useEffect(() => {
+    if (seconds > 0) return;
+    void navigate({ to: "/" });
+  }, [navigate, seconds]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
-      setSeconds((value) => {
-        if (value <= 1) {
-          window.clearInterval(timer);
-          void navigate({ to: "/" });
-          return 0;
-        }
-        return value - 1;
-      });
+      setSeconds((value) => Math.max(0, value - 1));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [navigate]);
+  }, []);
 
   return (
     <div className="relative min-h-dvh bg-surface">
@@ -66,10 +65,13 @@ function Page() {
           </div>
           <h1 className="mt-5 text-[26px] font-extrabold leading-tight tracking-tight text-primary">Recharge submitted</h1>
           <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
-            We received your payment proof. Your wallet balance updates after our team verifies it.
+            {approved
+              ? "Your payment was verified and your wallet has already been credited."
+              : "We received your payment proof. Your wallet balance updates after our team verifies it."}
           </p>
-          <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-warning/20 px-3 py-1.5 text-xs font-extrabold text-primary">
-            <Clock3 className="h-3.5 w-3.5" /> Pending review
+          <span className={`mt-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-extrabold ${approved ? "bg-success/15 text-success" : "bg-warning/20 text-primary"}`}>
+            {approved ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
+            {approved ? "Approved" : "Pending review"}
           </span>
         </div>
 
@@ -86,7 +88,7 @@ function Page() {
             <div className="mt-5 divide-y rounded-2xl bg-surface px-4 text-left">
               <Row l="Method" v={method} />
               <Row l="Payment proof" v={proofLabel || "Submitted"} />
-              <Row l="Status" v="Pending review" />
+              <Row l="Status" v={approved ? "Approved" : "Pending review"} />
               {txn && <Row l="Reference" v={txn} />}
             </div>
           </div>

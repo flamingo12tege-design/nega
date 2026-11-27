@@ -2,6 +2,8 @@
 -- Run this once in the Supabase SQL Editor. It only creates a read-only
 -- function (no schema changes) and is safe to re-run.
 
+reset role;
+
 create or replace function public.get_referral_tree()
 returns jsonb
 language sql
@@ -111,3 +113,5 @@ $$;
 -- Only signed-in users may call it; it never exposes anyone outside the caller's chain.
 revoke all on function public.get_referral_tree() from public;
 grant execute on function public.get_referral_tree() to authenticated;
+
+notify pgrst, 'reload schema';

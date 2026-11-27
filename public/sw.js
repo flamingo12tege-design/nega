@@ -1,5 +1,6 @@
 // Bump this when deployments change hashed assets so old entries are purged.
-const CACHE_NAME = "cas-shell-v6";
+const CACHE_PREFIX = "cas-shell-";
+const CACHE_NAME = "cas-shell-v7";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -8,7 +9,11 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+          .map((key) => caches.delete(key)),
+      ))
       .then(() => self.clients.claim())
       .catch(() => undefined)
   );

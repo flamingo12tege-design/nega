@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
 import { etb } from "@/lib/format";
@@ -7,11 +7,21 @@ import { ocrImage } from "@/lib/ocr-server";
 import { verifyCbePayment } from "@/lib/cbe-server";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
-import { depositAccount as defaultDepositAccount } from "@/lib/mock-data";
+import { depositAccount as defaultDepositAccount, rewardRules } from "@/lib/mock-data";
+import { usePlatformSettings } from "@/lib/queries";
+
+const validRechargeAmount = (value: unknown): number => {
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    && amount >= rewardRules.minimumDeposit
+    && amount === Math.floor(amount)
+    ? amount
+    : 0;
+};
 
 export const Route = createFileRoute("/recharge_/payment")({
   validateSearch: (search: Record<string, unknown>) => ({
-    amount: Number(search["amount"]) || 0,
+    amount: validRechargeAmount(search["amount"]),
     method: String(search["method"] ?? "CBE"),
   }),
   head: () => ({ meta: [{ title: "Complete payment — CAS" }, { name: "description", content: "Send your recharge amount and submit your payment proof." }, { property: "og:title", content: "Complete payment — CAS" }, { property: "og:description", content: "Send your recharge amount and submit your payment proof." }] }),
@@ -25,7 +35,6 @@ function Page() {
   const [fileName, setFileName] = useState("");
   const [txn, setTxn] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [depositAccount, setDepositAccount] = useState<{ name: string; bank: string; account: string } | null>(null);
   const [ocrState, setOcrState] = useState<"idle" | "scanning" | "found" | "not-found">("idle");
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,21 +93,20 @@ function Page() {
     void runOcr(file);
   };
 
-  useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase
-        .from("platform_settings")
-        .select("key,value")
-        .in("key", ["deposit_name", "deposit_bank", "deposit_account"]);
-      const values = Object.fromEntries((data ?? []).map((row) => [row.key, row.value]));
-      setDepositAccount({
-        name: String(values.deposit_name || defaultDepositAccount.name),
-        bank: String(values.deposit_bank || defaultDepositAccount.bank),
-        account: String(values.deposit_account || defaultDepositAccount.account),
-      });
+  const settingsQuery = usePlatformSettings(["deposit_name", "deposit_bank", "deposit_account"]);
+  const depositAccount = useMemo(() => {
+    const values = settingsQuery.data ?? {};
+    return {
+      name: String(values["deposit_name"] || defaultDepositAccount.name),
+      bank: String(values["deposit_bank"] || defaultDepositAccount.bank),
+      account: String(values["deposit_account"] || defaultDepositAccount.account),
     };
-    void load();
-  }, []);
+  }, [settingsQuery.data]);
+
+  // Preview URLs are tab-local resources; release the previous one on change.
+  useEffect(() => () => {
+    if (proof.startsWith("blob:")) URL.revokeObjectURL(proof);
+  }, [proof]);
 
   const copy = async () => {
     if (!depositAccount?.account) { toast.error("Deposit account is not available yet"); return; }
@@ -107,6 +115,13 @@ function Page() {
   };
 
   const doSubmit = async () => {
+    if (validRechargeAmount(amount) !== amount) {
+      toast.error(`Minimum recharge is ${etb(rewardRules.minimumDeposit)}`, {
+        description: "Enter a whole ETB amount from the package catalogue.",
+      });
+      return;
+    }
+
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) { toast.error("Please log in first"); return; }
@@ -204,7 +219,7 @@ function Page() {
       const { error: approveError } = await supabase.rpc("auto_approve_recharge", { p_ledger_id: ledgerId });
       if (!approveError) {
         toast.success("Payment verified — recharge auto-approved");
-        navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference } });
+        navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference, approved: true } });
         return;
       }
       const detail = /could not find the function|does not exist/i.test(approveError.message)
@@ -223,7 +238,7 @@ function Page() {
       });
     }
 
-    navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference } });
+    navigate({ to: "/recharge/success", search: { amount, method, proof: Boolean(proofFile), txn: reference, approved: false } });
   };
 
   const submit = async () => {

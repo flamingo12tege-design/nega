@@ -19,7 +19,8 @@ create table if not exists public.platform_settings (
 
 insert into public.platform_settings (key, value)
 values ('registration_bonus_amount', '50')
-on conflict (key) do update set value = excluded.value, updated_at = now();
+-- Seed only: do not reset an admin-edited bonus on re-run.
+on conflict (key) do nothing;
 
 alter table public.profiles
   add column if not exists registration_bonus_claimed boolean not null default false;

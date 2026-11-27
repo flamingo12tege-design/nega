@@ -6,6 +6,20 @@
 -- Each purchase can be claimed at most once per day and at most once per
 -- package payout day (45 days, matching rewardRules.packageDurationDays).
 
+-- Supabase SQL Editor may be impersonating "authenticated" so DDL needs the
+-- session owner role.
+reset role;
+
+create table if not exists public.platform_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.platform_settings (key, value)
+values ('recycle_duration_days', '45')
+on conflict (key) do nothing;
+
 -- 1) Per-claim day column + uniqueness backstop.
 alter table public.wallet_ledger
   add column if not exists claim_date date;
@@ -26,8 +40,12 @@ declare
   v_purchase public.purchases%rowtype;
   v_payout numeric;
   v_claims int;
-  v_today date := (now() at time zone 'utc')::date;
-  v_duration constant int := 45; -- rewardRules.packageDurationDays
+  v_today date := (now() at time zone 'Africa/Addis_Ababa')::date;
+  v_duration int := coalesce((
+    select nullif(value, '')::integer
+    from public.platform_settings
+    where key = 'recycle_duration_days'
+  ), 45);
 begin
   if v_user_id is null then
     raise exception 'Authentication required';
@@ -44,11 +62,11 @@ begin
     raise exception 'Purchase not found';
   end if;
 
-  if lower(v_purchase.status) <> 'approved' then
+  if lower(coalesce(v_purchase.status, '')) not in ('approved', 'completed') then
     raise exception 'This package is not active yet';
   end if;
 
-  select daily_payout into v_payout
+  select round(daily_payout) into v_payout
   from public.packages
   where id = v_purchase.package_id;
 
