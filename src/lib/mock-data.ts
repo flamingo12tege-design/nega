@@ -64,7 +64,7 @@ export const vipPlans = appliances.slice(0, 2).map((a) => ({
   totalReturn: Math.round(a.dailyPayout * rewardRules.packageDurationDays),
 }));
 
-export const depositAccount = { name: "Tegene", bank: "CBE", account: "1000604178669" } as const;
+export const depositAccount = { name: "Ashenafi Melese", bank: "CBE", account: "1000574816118" } as const;
 
 export const heroSlides = [
   { image: heroKitchen, title: "Make Your Home Better with CAS", subtitle: "Discover quality appliances for a better everyday life.", cta: "Explore Appliances", to: "/appliances" as const },
