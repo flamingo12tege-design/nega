@@ -100,8 +100,10 @@ function Page() {
   const pending = packages.filter(({ purchase }) => purchase.status === "Pending");
   const claimable = active.reduce(
     (sum, { purchase, appliance }) =>
-      claimStatus(claims, purchase.id, rewardRules.packageDurationDays) === "claimable" ? sum + appliance.dailyPayout : sum,
-    commissionClaimedToday ? 0 : dailyCommission,
+      claimStatus(claims, purchase.id, rewardRules.packageDurationDays) === "claimable"
+        ? sum + Math.round(appliance.dailyPayout)
+        : sum,
+    commissionClaimedToday ? 0 : Math.round(dailyCommission),
   );
   const claimed = totalClaimed(claims);
 
@@ -201,7 +203,7 @@ function Page() {
             {active.map(({ purchase, appliance }) => {
               const status = claimStatus(claims, purchase.id, rewardRules.packageDurationDays);
               const days = claimedDays(claims, purchase.id);
-              const earned = days * appliance.dailyPayout;
+              const earned = days * Math.round(appliance.dailyPayout);
               const pct = Math.min(100, (days / rewardRules.packageDurationDays) * 100);
               return (
                 <div key={purchase.id} className="rounded-2xl bg-card p-4 shadow-card">
