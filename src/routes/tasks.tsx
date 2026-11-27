@@ -14,7 +14,7 @@ import type { TaskStatus } from "@/lib/mock-data";
 import { walletQueryKey } from "@/lib/use-supabase-wallet";
 import { queryKeys, useDailyClaims, usePurchases, useSessionUser } from "@/lib/queries";
 
-type SuccessCard = { title: string; amount: number; label: string };
+type SuccessCard = { title: string; amount: number; label: string; note?: string | undefined };
 
 /** Small allow-list so we don't pull every lucide icon into the bundle. */
 const taskIcons: Record<string, LucideIcon> = { Sparkles };
@@ -131,9 +131,17 @@ function Page() {
     }
   };
 
-  const act = (id: string, status: TaskStatus) => {
+  const act = (id: string, status: TaskStatus, reward?: number, taskTitle?: string) => {
     if (status === "Available") { actions.setTask(id, "In Progress"); toast("Task started"); }
-    else if (status === "In Progress") { actions.setTask(id, "Under Review"); toast.success("Submitted for review", { description: "Rewards are credited after verification." }); }
+    else if (status === "In Progress") {
+      actions.setTask(id, "Under Review");
+      setSuccess({
+        title: "Income!",
+        amount: Math.round(reward ?? 0),
+        label: taskTitle ?? "Bonus task",
+        note: "Reward is credited after verification.",
+      });
+    }
   };
 
   return (
@@ -260,7 +268,7 @@ function Page() {
                   </div>
                   <div className="mt-4 flex items-center justify-between">
                     <span className="text-sm font-extrabold text-primary">+{etb(t.reward)}</span>
-                    <button disabled={disabled} onClick={() => act(t.id, t.status)} className="press rounded-xl bg-accent px-4 py-2 text-sm font-bold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground">{btn}</button>
+                    <button disabled={disabled} onClick={() => act(t.id, t.status, t.reward, t.title)} className="press rounded-xl bg-accent px-4 py-2 text-sm font-bold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground">{btn}</button>
                   </div>
                 </div>
               );
@@ -275,6 +283,7 @@ function Page() {
         title={success?.title ?? "Income!"}
         amount={success?.amount ?? 0}
         label={success?.label}
+        note={success?.note}
       />
     </div>
   );
