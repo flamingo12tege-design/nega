@@ -47,6 +47,9 @@ const OPEN_FROM = 3; // 3:00 AM
 const OPEN_TO = 23; // 11:00 PM
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
+/** Daily returns are shown as whole birr everywhere else in CAS — do the same here. */
+const birr = (n: number) => etb(Math.round(Number(n) || 0));
+
 /** Wall-clock time in East Africa Time (UTC+3), the CAS operating timezone. */
 function eatNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" }));
@@ -248,7 +251,7 @@ function Page() {
           <p className="mt-1.5 flex items-baseline gap-2">
             <span className="text-lg font-extrabold text-accent">ETB</span>
             <span className="text-[44px] font-extrabold leading-none tracking-tight tabular-nums">
-              {available.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+              {Math.round(available).toLocaleString("en-US")}
             </span>
           </p>
 
@@ -266,7 +269,7 @@ function Page() {
               <span key={label} className="flex items-center gap-1.5">
                 <span className={`h-2 w-2 rounded-full ${dot}`} />
                 <span className="text-primary-foreground/60">{label}</span>
-                <span className="font-bold tabular-nums">{etb(value)}</span>
+                <span className="font-bold tabular-nums">{birr(value)}</span>
               </span>
             ))}
           </div>
@@ -276,7 +279,7 @@ function Page() {
         <div className="relative border-t border-dashed border-white/25">
           <div className="flex items-center justify-between gap-3 px-6 py-3.5 text-xs">
             <span className="text-primary-foreground/60">
-              Minimum payout <span className="font-extrabold text-accent">{etb(minAmount)}</span>
+              Minimum payout <span className="font-extrabold text-accent">{birr(minAmount)}</span>
             </span>
             <span className="flex items-center gap-1.5 text-primary-foreground/60">
               <CalendarDays className="h-3.5 w-3.5" /> Mon – Sat
@@ -309,14 +312,14 @@ function Page() {
             </span>
             <h2 className="relative mt-4 text-xl font-extrabold tracking-tight">Payouts locked</h2>
             <p className="relative mt-1.5 max-w-sm text-sm leading-6 text-muted-foreground">
-              Your first package unlocks the counter. Earn from it, then cash out from {etb(minAmount)}.
+              Your first package unlocks the counter. Earn from it, then cash out from {birr(minAmount)}.
             </p>
 
             <ol className="relative mt-5 space-y-0">
               {[
                 { icon: ShoppingBag, text: "Choose a package that fits you", hint: "Takes a minute" },
                 { icon: Sparkles, text: "Claim daily income & task rewards", hint: "Every day" },
-                { icon: ArrowUpRight, text: `Withdraw from ${etb(minAmount)}`, hint: "Mon – Sat" },
+                { icon: ArrowUpRight, text: `Withdraw from ${birr(minAmount)}`, hint: "Mon – Sat" },
               ].map(({ icon: Icon, text, hint }, i, list) => (
                 <li key={text} className="relative flex gap-3 pb-4 last:pb-0">
                   {i < list.length - 1 && <span className="absolute left-[15px] top-8 h-[calc(100%-2rem)] w-px bg-border" />}
@@ -351,7 +354,7 @@ function Page() {
             </div>
 
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Earn <span className="font-extrabold text-primary tabular-nums">{etb(remaining)}</span> more to unlock the
+              Earn <span className="font-extrabold text-primary tabular-nums">{birr(remaining)}</span> more to unlock the
               withdrawal counter.
             </p>
 
@@ -362,8 +365,8 @@ function Page() {
               />
             </div>
             <div className="mt-2 flex justify-between text-[11px] font-bold tabular-nums text-muted-foreground">
-              <span>{etb(available)} earned</span>
-              <span>{etb(minAmount)} goal</span>
+              <span>{birr(available)} earned</span>
+              <span>{birr(minAmount)} goal</span>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -389,7 +392,7 @@ function Page() {
             <div className="min-w-0">
               <p className="text-sm font-extrabold text-success">You're eligible to withdraw</p>
               <p className="text-xs text-muted-foreground">
-                Up to {etb(available)} · paid to your CBE account within 1–48 hours.
+                Up to {birr(available)} · paid to your CBE account within 1–48 hours.
               </p>
             </div>
             <CheckCircle2 className="ml-auto h-5 w-5 shrink-0 text-success/60" />
