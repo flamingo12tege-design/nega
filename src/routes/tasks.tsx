@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, Clock3, PackageOpen, Users, type LucideIcon } from "lucide-react";
 import { rewardRules } from "@/lib/mock-data";
@@ -12,6 +12,7 @@ import { PageHeader, Section } from "@/components/cas/AppShell";
 import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
 import type { TaskStatus } from "@/lib/mock-data";
 import { walletQueryKey } from "@/lib/use-supabase-wallet";
+import { queryKeys, useDailyClaims, usePurchases, useSessionUser } from "@/lib/queries";
 
 type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
 
@@ -33,12 +34,20 @@ const pill: Record<TaskStatus, string> = {
 function Page() {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<SuccessCard | null>(null);
+  const { userId } = useSessionUser();
   const storedPurchases = useStore((s) => s.purchases);
-  const [livePurchases, setLivePurchases] = useState<Array<{ id: string; package_id: string; amount: number; status: string; created_at: string }>>([]);
+  const purchasesQuery = usePurchases(userId);
+  const claimsQuery = useDailyClaims(userId);
   const storedClaims = useStore((s) => s.claims);
-  // Claims persisted in wallet_ledger are the source of truth; the local store
-  // only keeps this session's fallback state.
-  const [liveClaims, setLiveClaims] = useState<DailyClaim[] | null>(null);
+  const liveClaims = useMemo<DailyClaim[] | null>(() => {
+    if (!purchasesQuery.data && !claimsQuery.data) return null;
+    return (claimsQuery.data ?? []).map((row) => ({
+      id: row.id,
+      purchaseId: String(row.reference_id ?? ""),
+      date: todayKey(new Date(row.created_at ?? Date.now())),
+      amount: Number(row.amount) || 0,
+    }));
+  }, [claimsQuery.data, purchasesQuery.data]);
   const claims = liveClaims ?? storedClaims;
   const [claiming, setClaiming] = useState<string | null>(null);
   const tasks = useStore((s) => s.tasks);
@@ -46,54 +55,15 @@ function Page() {
   const { dailyCommission, commissionClaimedToday, settings, vip } = useReferral();
   const claimedToday = claims.filter((c) => c.date === todayKey()).length;
 
-  const loadClaims = async (userId: string) => {
-    const { data } = await supabase
-      .from("wallet_ledger")
-      .select("id,amount,created_at,reference_id")
-      .eq("user_id", userId)
-      .eq("type", "daily_income")
-      .order("created_at", { ascending: false });
-    setLiveClaims(
-      (data ?? []).map((row) => ({
-        id: String(row.id),
-        purchaseId: String(row.reference_id ?? ""),
-        date: todayKey(new Date(row.created_at ?? Date.now())),
-        amount: Number(row.amount) || 0,
-      })),
-    );
-  };
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) return;
-      const [{ data }, { data: claimRows }] = await Promise.all([
-        supabase.from("purchases").select("id,package_id,amount,status,created_at").eq("user_id", userId).order("created_at", { ascending: false }),
-        supabase
-          .from("wallet_ledger")
-          .select("id,amount,created_at,reference_id")
-          .eq("user_id", userId)
-          .eq("type", "daily_income")
-          .order("created_at", { ascending: false }),
-      ]);
-      if (!active) return;
-      setLivePurchases((data ?? []).map((r) => ({ id: r.id, package_id: r.package_id, amount: Number(r.amount), status: r.status, created_at: r.created_at })));
-      setLiveClaims(
-        (claimRows ?? []).map((row) => ({
-          id: String(row.id),
-          purchaseId: String(row.reference_id ?? ""),
-          date: todayKey(new Date(row.created_at ?? Date.now())),
-          amount: Number(row.amount) || 0,
-        })),
-      );
-    };
-    void load();
-    return () => { active = false; };
-  }, []);
-
-  const purchases = livePurchases.length > 0 ? livePurchases.map((p) => ({ id: p.id, applianceId: p.package_id, method: "Wallet balance", status: p.status === "approved" ? "Approved" : "Pending", date: p.created_at })) : storedPurchases;
+  const purchases = (purchasesQuery.data && purchasesQuery.data.length > 0)
+    ? purchasesQuery.data.map((p) => ({
+        id: p.id,
+        applianceId: p.package_id,
+        method: "Wallet balance",
+        status: p.status === "approved" ? "Approved" : "Pending",
+        date: p.created_at,
+      }))
+    : storedPurchases;
 
   const packages = purchases.flatMap((purchase) => {
     const appliance = allPackages.find((a) => a.id === purchase.applianceId);
@@ -122,8 +92,7 @@ function Page() {
       const message = error.message ?? "";
       if (/already claimed/i.test(message)) {
         toast("Already claimed today", { description: "Your next daily income unlocks tomorrow." });
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session?.user.id) void loadClaims(sessionData.session.user.id);
+        if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.dailyClaims(userId) });
       } else if (/package completed/i.test(message)) {
         toast("Package completed", { description: "This package has reached its daily income limit." });
       } else if (/not active/i.test(message)) {
@@ -138,10 +107,7 @@ function Page() {
 
     const amount = Number(data) || 0;
     const appliance = allPackages.find((a) => a.id === applianceId);
-    setLiveClaims((prev) => [
-      { id: crypto.randomUUID(), purchaseId: id, date: todayKey(), amount },
-      ...(prev ?? []),
-    ]);
+    if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.dailyClaims(userId) });
     setSuccess({
       title: "Daily income claimed",
       description: "Added to your withdrawable balance.",

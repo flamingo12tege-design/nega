@@ -1,11 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 import { etb, fmtDate } from "@/lib/format";
-import { useStore } from "@/lib/store";
 import { PageHeader, Section } from "@/components/cas/AppShell";
 import { StatusPill } from "@/components/cas/StatusPill";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { usePurchases, useSessionUser } from "@/lib/queries";
 
 export const Route = createFileRoute("/wallet")({
   head: () => ({ meta: [{ title: "My Wallet — CAS" }, { name: "description", content: "Your CAS balances, bonuses, purchases and transactions." }, { property: "og:title", content: "My Wallet — CAS" }, { property: "og:description", content: "Your CAS balances, bonuses, purchases and transactions." }] }),
@@ -13,6 +11,8 @@ export const Route = createFileRoute("/wallet")({
 });
 
 function Page() {
+  const { userId } = useSessionUser();
+  const purchasesQuery = usePurchases(userId);
   const wallet = useSupabaseWallet();
   const balance = wallet.balance;
   const history = wallet.ledger.map((row) => ({
@@ -22,22 +22,7 @@ function Page() {
     date: row.created_at,
     status: row.status,
   }));
-  const [livePurchases, setLivePurchases] = useState<Array<{ id: string; package_id: string; amount: number; payment_method: string; status: string; created_at: string }>>([]);
-
-  useEffect(() => {
-    const loadPurchases = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) return;
-      const { data } = await supabase
-        .from("purchases")
-        .select("id,package_id,amount,payment_method,status,created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-      setLivePurchases((data ?? []).map((row) => ({ ...row, amount: Number(row.amount) })));
-    };
-    void loadPurchases();
-  }, []);
+  const livePurchases = purchasesQuery.data ?? [];
   return (
     <div>
       <PageHeader title="My Wallet" back />

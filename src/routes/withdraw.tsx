@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/cas/AppShell";
 import { MoneyForm } from "@/components/cas/MoneyForm";
 import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 import { supabase } from "@/lib/supabase";
+import { useProfile, useSessionUser } from "@/lib/queries";
 
 export const Route = createFileRoute("/withdraw")({
   head: () => ({ meta: [{ title: "Withdraw — CAS" }, { name: "description", content: "Withdraw the income your CAS package earns." }, { property: "og:title", content: "Withdraw — CAS" }, { property: "og:description", content: "Withdraw the income your CAS package earns." }] }),
@@ -23,27 +24,29 @@ type Eligibility = {
 };
 
 function Page() {
+  const { userId } = useSessionUser();
+  const profileQuery = useProfile(userId);
   const wallet = useSupabaseWallet();
   const payoutAccount = useStore((s) => s.payoutAccount);
   const [eligibility, setEligibility] = useState<Eligibility | null>(null);
 
-  // Restore the saved bank account and load withdrawal eligibility.
+  useEffect(() => {
+    const account = typeof profileQuery.data?.payout_account === "string" ? profileQuery.data.payout_account : "";
+    if (account) actions.setPayoutAccount(account);
+  }, [profileQuery.data?.payout_account]);
+
+  // Load withdrawal eligibility.
   useEffect(() => {
     let active = true;
     const load = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
       if (!userId) return;
 
-      const [{ data: profile }, { data: rpcData, error: rpcError }, { data: purchases }] = await Promise.all([
-        supabase.from("profiles").select("payout_account").eq("id", userId).maybeSingle(),
+      const [{ data: rpcData, error: rpcError }, { data: purchases }] = await Promise.all([
         supabase.rpc("withdraw_eligibility"),
         supabase.from("purchases").select("status").eq("user_id", userId),
       ]);
 
       if (!active) return;
-      const saved = typeof profile?.payout_account === "string" ? profile.payout_account : "";
-      if (saved) actions.setPayoutAccount(saved);
 
       const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
       if (!rpcError && row) {
@@ -75,7 +78,7 @@ function Page() {
     };
     void load();
     return () => { active = false; };
-  }, [wallet.ledger]);
+  }, [userId, wallet.ledger]);
 
   const available = eligibility?.available ?? 0;
   const minAmount = eligibility?.min_amount ?? rewardRules.minimumWithdrawal;

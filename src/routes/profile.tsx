@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 import { SecuritySettings, useWithdrawalPasswordStatus } from "@/components/cas/SecuritySettings";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, useProfile, useSessionUser } from "@/lib/queries";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — CAS" }, { name: "description", content: "Manage your CAS account, wallet and settings." }, { property: "og:title", content: "Profile — CAS" }, { property: "og:description", content: "Manage your CAS account, wallet and settings." }] }),
@@ -24,26 +26,12 @@ function Page() {
     { l: "Help and Support", i: LifeBuoy, to: "/support" as const },
     { l: "About CAS", i: Info, to: "/about" as const },
   ];
-  const [profile, setProfile] = useState<{ member_id?: string; phone?: string; created_at?: string } | null>(null);
-  const [email, setEmail] = useState("");
+  const { user } = useSessionUser();
+  const profileQuery = useProfile(user?.id ?? null);
+  const profile = profileQuery.data;
+  const email = user?.email ?? "";
   const [securityOpen, setSecurityOpen] = useState(false);
   const { hasPassword, hasKeywords, unavailable, refresh: refreshSecurity } = useWithdrawalPasswordStatus();
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const authUser = sessionData.session?.user;
-      if (!authUser) return;
-      setEmail(authUser.email ?? "");
-      const { data } = await supabase
-        .from("profiles")
-        .select("member_id,phone,created_at")
-        .eq("id", authUser.id)
-        .maybeSingle();
-      setProfile(data);
-    };
-    void loadProfile();
-  }, []);
   const wallet = useSupabaseWallet();
   return (
     <div>
@@ -149,26 +137,20 @@ function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> 
 }
 
 function PayoutAccount() {
+  const queryClient = useQueryClient();
+  const { userId } = useSessionUser();
+  const profileQuery = useProfile(userId);
   const saved = useStore((s) => s.payoutAccount);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(saved);
 
-  // Restore the saved account from Supabase so it is remembered across sessions.
+  // Restore the saved account from the shared profile query.
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
-      if (!userId) return;
-      const { data } = await supabase.from("profiles").select("payout_account").eq("id", userId).maybeSingle();
-      const account = typeof data?.payout_account === "string" ? data.payout_account : "";
-      if (!active || !account) return;
-      actions.setPayoutAccount(account);
-      setValue(account);
-    };
-    void load();
-    return () => { active = false; };
-  }, []);
+    const account = typeof profileQuery.data?.payout_account === "string" ? profileQuery.data.payout_account : "";
+    if (!account) return;
+    actions.setPayoutAccount(account);
+    setValue(account);
+  }, [profileQuery.data?.payout_account]);
 
   const save = async () => {
     if (!/^\d{13}$/.test(value)) { toast.error("Enter a valid 13-digit CBE account number"); return; }
@@ -178,6 +160,7 @@ function PayoutAccount() {
       return;
     }
     actions.setPayoutAccount(value);
+    if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.profile(userId) });
     setOpen(false);
     toast.success("Bank account saved", { description: "Your CBE account details are attached." });
   };
