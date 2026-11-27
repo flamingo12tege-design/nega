@@ -61,7 +61,8 @@ security definer
 stable
 set search_path = public
 as $tc$
-  with params as (
+  with recursive
+  params as (
     select
       coalesce((select value::numeric from public.platform_settings where key = 'team_commission_level1_percent'), 8) as l1,
       coalesce((select value::numeric from public.platform_settings where key = 'team_commission_level2_percent'), 3) as l2,

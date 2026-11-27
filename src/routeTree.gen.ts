@@ -15,6 +15,7 @@ import { Route as CasadminRouteImport } from './routes/casadmin'
 import { Route as GiftsRouteImport } from './routes/gifts'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LuckyWheelRouteImport } from './routes/lucky-wheel'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OffersRouteImport } from './routes/offers'
@@ -61,6 +62,11 @@ const HowItWorksRoute = HowItWorksRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LuckyWheelRoute = LuckyWheelRouteImport.update({
+  id: '/lucky-wheel',
+  path: '/lucky-wheel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/gifts': typeof GiftsRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
+  '/lucky-wheel': typeof LuckyWheelRoute
   '/news': typeof NewsRoute
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/gifts': typeof GiftsRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
+  '/lucky-wheel': typeof LuckyWheelRoute
   '/news': typeof NewsRoute
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/gifts': typeof GiftsRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
+  '/lucky-wheel': typeof LuckyWheelRoute
   '/news': typeof NewsRoute
   '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/gifts'
     | '/how-it-works'
     | '/login'
+    | '/lucky-wheel'
     | '/news'
     | '/notifications'
     | '/offers'
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/gifts'
     | '/how-it-works'
     | '/login'
+    | '/lucky-wheel'
     | '/news'
     | '/notifications'
     | '/offers'
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | '/gifts'
     | '/how-it-works'
     | '/login'
+    | '/lucky-wheel'
     | '/news'
     | '/notifications'
     | '/offers'
@@ -310,6 +322,7 @@ export interface RootRouteChildren {
   GiftsRoute: typeof GiftsRoute
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
+  LuckyWheelRoute: typeof LuckyWheelRoute
   NewsRoute: typeof NewsRoute
   NotificationsRoute: typeof NotificationsRoute
   OffersRoute: typeof OffersRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lucky-wheel': {
+      id: '/lucky-wheel'
+      path: '/lucky-wheel'
+      fullPath: '/lucky-wheel'
+      preLoaderRoute: typeof LuckyWheelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -502,6 +522,7 @@ const rootRouteChildren: RootRouteChildren = {
   GiftsRoute: GiftsRoute,
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,
+  LuckyWheelRoute: LuckyWheelRoute,
   NewsRoute: NewsRoute,
   NotificationsRoute: NotificationsRoute,
   OffersRoute: OffersRoute,

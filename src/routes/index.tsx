@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, ArrowDownToLine, ArrowUpFromLine, Download, LifeBuoy } from "lucide-react";
+import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, ArrowDownToLine, ArrowUpFromLine, Download, LifeBuoy, Trophy } from "lucide-react";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -62,6 +62,7 @@ function Home() {
   const quick = [
     { to: "/news", label: "News", icon: Newspaper },
     { to: "/gifts", label: "Gifts", icon: Gift },
+    { to: "/lucky-wheel", label: "Lucky Wheel", icon: Trophy },
     { to: "/about", label: "About", icon: Info },
     { to: "/team", label: "Invite", icon: UserPlus },
     { to: "/support", label: "Support", icon: LifeBuoy },
