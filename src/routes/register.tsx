@@ -33,18 +33,24 @@ function Page() {
   const [welcomedMemberId, setWelcomeMemberId] = useState<string | undefined>(undefined);
 
   // Invitations are optional. Accept a ?ref= code or a manual code entry.
+  // The URL param code is always displayed; only cleared if manually validated
+  // and found invalid. This preserves the invitation link experience.
   useEffect(() => {
     if (!ref) return;
     let active = true;
     const validate = async () => {
       const { data } = await supabase.from("profiles").select("referral_code").eq("referral_code", ref.toUpperCase()).maybeSingle();
-      if (active && !data?.referral_code) setCode(undefined);
+      if (active && !data?.referral_code) {
+        // Do NOT clear code here — keep the URL param visible.
+        // Only clear on manual re-entry or submit error.
+        return;
+      }
     };
     void validate();
     return () => { active = false; };
   }, [ref]);
 
-  // Manual invitation code validation.
+  // Manual invitation code validation state.
   const [manualCode, setManualCode] = useState<string | undefined>(undefined);
   const [manualCodeValid, setManualCodeValid] = useState(false);
   const [manualCodeLoading, setManualCodeLoading] = useState(false);
@@ -82,15 +88,14 @@ function Page() {
     const phone = normalizeEthiopianPhone(f.phone);
     if (!phone) return;
 
-    const generatedMemberId = `CAS-${Math.floor(100000 + Math.random() * 900000)}`;
-
-    // Determine the referral code to use: URL param takes priority, then manual entry.
+    // Determine the referral code: URL param takes priority, then manual entry.
+    // URL param is always displayed; manual entry must pass validation.
     const referralCode = code ?? manualCode ?? null;
 
     const { data, error } = await supabase.auth.signUp({
       email: phoneToEmail(phone),
       password: f.pw,
-      options: { data: { phone, member_id: generatedMemberId, referral_code: referralCode } },
+      options: { data: { phone, member_id: `CAS-${Math.floor(100000 + Math.random() * 900000)}`, referral_code: referralCode } },
     });
 
     if (error) {
@@ -101,7 +106,6 @@ function Page() {
           : error.message,
       });
       toast.error("Could not create account", { description: error.message });
-      // Clear manual code on error so it doesn't persist incorrectly.
       setManualCodeUndefined();
       return;
     }
@@ -109,7 +113,7 @@ function Page() {
     if (data.user) {
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
-        member_id: generatedMemberId,
+        member_id: `CAS-${Math.floor(100000 + Math.random() * 900000)}`,
         phone,
         role: "user",
         wallet_balance: 0,
@@ -119,7 +123,6 @@ function Page() {
       if (profileError) {
         setErr({ phone: profileError.message });
         toast.error("Could not save your profile", { description: profileError.message });
-        // Clear manual code on error.
         setManualCodeUndefined();
         return;
       }
@@ -129,11 +132,9 @@ function Page() {
       const credited = !bonusError && Number(bonus ?? 0) > 0;
       const signedIn = Boolean(data.session);
 
-      // Queue the welcome announcement so it survives a future redirect,
-      // then show it immediately on this page without navigating away.
-      queueWelcome({ credited, memberId: generatedMemberId, signedIn });
+      queueWelcome({ credited, memberId: `CAS-${Math.floor(100000 + Math.random() * 900000)}`, signedIn });
       setWelcomeCredited(credited);
-      setWelcomeMemberId(generatedMemberId);
+      setWelcomeMemberId(`CAS-${Math.floor(100000 + Math.random() * 900000)}`);
       setShowWelcome(true);
       return;
     }
@@ -141,7 +142,6 @@ function Page() {
     navigate({ to: "/login" });
   };
 
-  // Helper to clear manual code state.
   const setManualCodeUndefined = () => {
     setManualCode(undefined);
     setManualCodeValid(false);
@@ -154,16 +154,15 @@ function Page() {
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />
 
-        {/* Invitation code section - supports both ?ref=CODE URL parameter and manual entry. */}
+        {/* Invitation code section supports both ?ref=CODE URL param and manual entry. */}
         <div className="mt-3">
           <p className="text-xs text-muted-foreground">Invitation code (optional)</p>
-          {/* URL parameter code */}
+          {/* URL parameter code — always displayed from the search param. */}
           {code && (
             <p className="rounded-xl border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-primary">
               Invitation applied: <span className="font-extrabold">{code}</span>
             </p>
           )}
-          {/* Manual code entry */}
           {!code && (
             <div className="mt-2 flex items-center gap-2">
               <input
