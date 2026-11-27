@@ -46,12 +46,15 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   };
   const n = Number(amount);
   const minPackageAmount = useStore(minimumRechargeAmount);
+  const packagePrices = useStore((s) =>
+    Array.from(new Set(s.packages.map((p) => Number(p.price)).filter((v) => Number.isFinite(v) && v > 0))).sort((a, b) => a - b),
+  );
   const minimumAmount = kind === "Withdraw" ? rewardRules.minimumWithdrawal : minPackageAmount;
   const amountLabel = kind === "Withdraw" ? "withdrawal" : "recharge";
   const fee = kind === "Withdraw" ? (n * rewardRules.withdrawalFeePercent) / 100 : 0;
   const quickAmounts = kind === "Withdraw"
     ? [300, 500, 1000, 5000]
-    : Array.from(new Set([minPackageAmount, 500, 1000, 2000, 3000, 5000, 10000].filter((v) => v >= minPackageAmount))).sort((a, b) => a - b);
+    : (packagePrices.length > 0 ? packagePrices : [minPackageAmount]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!n || n < minimumAmount) { toast.error(`Minimum ${amountLabel} amount is ${etb(minimumAmount)}`); return; }
