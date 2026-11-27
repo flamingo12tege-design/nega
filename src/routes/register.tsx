@@ -32,7 +32,7 @@ function Page() {
   const [welcomedCredited, setWelcomeCredited] = useState(false);
   const [welcomedMemberId, setWelcomeMemberId] = useState<string | undefined>(undefined);
 
-  // Invitations are optional. Only use a ?ref= code when it belongs to a real member.
+  // Invitations are optional. Accept a ?ref= code or a manual code entry.
   useEffect(() => {
     if (!ref) return;
     let active = true;
@@ -43,6 +43,31 @@ function Page() {
     void validate();
     return () => { active = false; };
   }, [ref]);
+
+  // Manual invitation code validation.
+  const [manualCode, setManualCode] = useState<string | undefined>(undefined);
+  const [manualCodeValid, setManualCodeValid] = useState(false);
+  const [manualCodeLoading, setManualCodeLoading] = useState(false);
+
+  const validateManualCode = async (code: string) => {
+    setManualCodeLoading(true);
+    try {
+      const { data, error } = await supabase.from("profiles").select("referral_code").eq("referral_code", code.toUpperCase()).maybeSingle();
+      if (error || !data?.referral_code) {
+        setManualCodeValid(false);
+        toast.error("Invalid invitation code", { description: "This referral code does not belong to a registered member." });
+      } else {
+        setManualCodeValid(true);
+        setManualCode(code.toUpperCase());
+        toast.success("Invitation code applied", { description: "Code validated and will be used for this signup." });
+      }
+    } catch {
+      setManualCodeValid(false);
+      toast.error("Could not validate invitation code", { description: "Please try again." });
+    } finally {
+      setManualCodeLoading(false);
+    }
+  };
 
   const up = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const submit = async (e: React.FormEvent) => {
@@ -58,10 +83,14 @@ function Page() {
     if (!phone) return;
 
     const generatedMemberId = `CAS-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // Determine the referral code to use: URL param takes priority, then manual entry.
+    const referralCode = code ?? manualCode ?? null;
+
     const { data, error } = await supabase.auth.signUp({
       email: phoneToEmail(phone),
       password: f.pw,
-      options: { data: { phone, member_id: generatedMemberId, referral_code: code ?? null } },
+      options: { data: { phone, member_id: generatedMemberId, referral_code: referralCode } },
     });
 
     if (error) {
@@ -72,6 +101,8 @@ function Page() {
           : error.message,
       });
       toast.error("Could not create account", { description: error.message });
+      // Clear manual code on error so it doesn't persist incorrectly.
+      setManualCodeUndefined();
       return;
     }
 
@@ -82,12 +113,14 @@ function Page() {
         phone,
         role: "user",
         wallet_balance: 0,
-        referral_code: code ?? null,
+        referral_code: referralCode,
       });
 
       if (profileError) {
         setErr({ phone: profileError.message });
         toast.error("Could not save your profile", { description: profileError.message });
+        // Clear manual code on error.
+        setManualCodeUndefined();
         return;
       }
 
@@ -108,17 +141,58 @@ function Page() {
     navigate({ to: "/login" });
   };
 
+  // Helper to clear manual code state.
+  const setManualCodeUndefined = () => {
+    setManualCode(undefined);
+    setManualCodeValid(false);
+  };
+
   return (
     <AuthLayout title="Join CAS" subtitle="Just your phone and a password.">
       <form onSubmit={submit} className="space-y-3">
         <PhoneField inputMode="tel" placeholder="Enter your mobile number" value={f.phone} onChange={up("phone")} error={err["phone"]} />
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />
-        {code && (
-          <p className="rounded-xl border border-accent bg-accent/10 px-4 py-3 text-xs font-semibold text-primary">
-            Invitation applied: <span className="font-extrabold">{code}</span>
-          </p>
-        )}
+
+        {/* Invitation code section - supports both ?ref=CODE URL parameter and manual entry. */}
+        <div className="mt-3">
+          <p className="text-xs text-muted-foreground">Invitation code (optional)</p>
+          {/* URL parameter code */}
+          {code && (
+            <p className="rounded-xl border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-primary">
+              Invitation applied: <span className="font-extrabold">{code}</span>
+            </p>
+          )}
+          {/* Manual code entry */}
+          {!code && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="text"
+                value={manualCode ?? ""}
+                onChange={(e) => setManualCode(e.target.value.trim().toUpperCase() || undefined)}
+                placeholder="Enter referral code"
+                maxLength="20"
+                className="min-w-0 flex-1 rounded-xl border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                disabled={manualCodeLoading}
+                aria-label="Referral code"
+              />
+              <button
+                type="button"
+                onClick={() => manualCode && validateManualCode(manualCode)}
+                disabled={!manualCode || manualCodeLoading}
+                className="press rounded-xl bg-secondary px-3 py-2.5 text-sm font-bold text-primary"
+              >
+                Validate
+              </button>
+            </div>
+          )}
+          {manualCodeValid && !code && (
+            <p className="mt-2 rounded-xl border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-primary">
+              Invitation applied: <span className="font-extrabold">{manualCode}</span>
+            </p>
+          )}
+        </div>
+
         <button className="press !mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Create account</button>
         <p className="text-center text-sm">Have an account? <Link to="/login" className="font-semibold text-accent">Log in</Link></p>
       </form>
