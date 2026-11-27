@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Sparkles, Trophy, RotateCw } from "lucide-react";
+import { Sparkles, Trophy, RotateCw, Info } from "lucide-react";
 import { PageHeader } from "@/components/cas/AppShell";
 
 export const Route = createFileRoute("/lucky-wheel")({
@@ -71,7 +71,17 @@ function Page() {
             <Trophy className="h-6 w-6" />
           </span>
           <h2 className="relative mt-3 text-xl font-extrabold">Try your luck</h2>
-          <p className="relative mt-1 text-sm text-primary-foreground/75">One spin per day. Rewards are credited after verification.</p>
+          <p className="relative mt-1 text-sm text-primary-foreground/75">Rewards are credited after verification.</p>
+        </section>
+
+        {/* How spins are earned */}
+        <section className="flex items-start gap-3 rounded-2xl bg-card p-4 shadow-card">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
+            <Info className="h-4 w-4" />
+          </span>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Earn a spin with your first subscription, or when a friend you invite makes theirs.
+          </p>
         </section>
 
         <section className="flex flex-col items-center rounded-3xl bg-card px-5 pb-7 pt-8 shadow-card">
