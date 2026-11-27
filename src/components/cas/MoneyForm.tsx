@@ -57,7 +57,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   // Withdrawals: chips must never exceed what the member can actually take out.
   const withdrawQuick = useMemo(() => {
     const cap = max ?? Infinity;
-    const list = [50, 300, 500, 1000, 5000].filter((v) => v <= cap);
+    const list = [rewardRules.minimumWithdrawal, 500, 1000, 5000].filter((v) => v <= cap);
     if (list.length < 4) {
       const remainder = Math.floor(cap);
       if (remainder >= minimumAmount && !list.includes(remainder)) list.push(remainder);
@@ -123,7 +123,8 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
       <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
         {kind === "Withdraw" ? (
           <>
-            <p>Minimum withdrawal: {etb(rewardRules.minimumWithdrawal)} · Fee: {rewardRules.withdrawalFeePercent}%</p>
+            <p>Minimum withdrawal: {etb(rewardRules.minimumWithdrawal)} · Fee: {rewardRules.withdrawalFeePercent}% · whole ETB amounts only</p>
+            <p className="mt-1 text-muted-foreground">No maximum limit — you can request your full available income.</p>
             {n > 0 && <p className="mt-1 font-semibold text-foreground">Fee: {etb(fee)} · You receive: {etb(n - fee)}</p>}
           </>
         ) : (

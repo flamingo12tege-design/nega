@@ -16,10 +16,14 @@ import type { ReferralLevel, ReferralSettings } from "./referral";
 export type Appliance = { id: string; tier: number; name: string; price: number; dailyPayout: number; image: string; short: string; details: string[] };
 
 export const rewardRules = {
-  registrationBonus: 300,
-  minimumWithdrawal: 50,
+  /** Daily income is 4.6% of the package price (ETB 1,300 → ETB 59.8 per day). */
+  dailyReturnPercent: 4.6,
+  /** ETB 50 welcome credit, payable once per new member. */
+  registrationBonus: 50,
+  minimumDeposit: 1300,
+  minimumWithdrawal: 300,
   withdrawalFeePercent: 10,
-  /** Each active package pays daily income for this many days. */
+  /** Recycle/payout window for each package: 45 daily claims. */
   packageDurationDays: 45,
   withdrawalDays: "Monday – Saturday",
   withdrawalHours: "3:00 AM – 11:00 PM",

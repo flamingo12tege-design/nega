@@ -1,13 +1,25 @@
 -- Registration welcome bonus
 -- Run this once in the Supabase SQL Editor. Safe to re-run.
 --
--- Credits the ETB 300 welcome bonus to a newly registered member exactly
--- once. The app calls this right after registration, before it shows the
--- "Welcome to CAS" popup, so the bonus is really in the member's wallet.
+-- Credits the ETB 50 welcome bonus to a newly registered member exactly
+-- once. The amount is editable in public.platform_settings. The app calls this
+-- right after registration, before it shows the "Welcome to CAS" popup, so the
+-- bonus is really in the member's wallet.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
 reset role;
+
+-- Editable rules (same table used by TEAM_COMMISSION.sql).
+create table if not exists public.platform_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.platform_settings (key, value)
+values ('registration_bonus_amount', '50')
+on conflict (key) do update set value = excluded.value, updated_at = now();
 
 alter table public.profiles
   add column if not exists registration_bonus_claimed boolean not null default false;
@@ -20,7 +32,11 @@ set search_path = public
 as $bonus$
 declare
   v_user_id uuid := auth.uid();
-  v_amount numeric := 300;
+  v_amount numeric := coalesce((
+    select nullif(value, '')::numeric
+    from public.platform_settings
+    where key = 'registration_bonus_amount'
+  ), 50);
   v_claimed boolean;
 begin
   if v_user_id is null then

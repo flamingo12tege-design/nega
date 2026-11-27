@@ -82,7 +82,7 @@ export const minimumRechargeAmount = (s: State) => {
   const candidates = s.packages.filter((p) => !s.lockedIds.includes(p.id));
   const list = candidates.length > 0 ? candidates : s.packages;
   const min = list.reduce((lowest, p) => Math.min(lowest, p.price), Infinity);
-  return Number.isFinite(min) ? min : 0;
+  return Number.isFinite(min) ? Math.max(min, rewardRules.minimumDeposit) : rewardRules.minimumDeposit;
 };
 
 /** VIP = highest approved package tier owned; tier 1 or above unlocks referral rewards. */

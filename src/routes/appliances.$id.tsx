@@ -117,6 +117,7 @@ function Page() {
             <p className="mt-1 text-sm font-extrabold text-accent tabular-nums">{etb(Math.round(a.dailyPayout * rewardRules.packageDurationDays))}</p>
           </div>
         </div>
+        <p className="mt-2 text-[11px] font-bold text-primary">{rewardRules.dailyReturnPercent}% daily return · {rewardRules.packageDurationDays}-day recycle</p>
         <p className="mt-2 text-[11px] text-muted-foreground">Daily claims are required to earn each day's return.</p>
         <ul className="mt-4 space-y-2">
           {a.details.map((d) => <li key={d} className="flex items-center gap-2 text-sm"><Check className="h-4 w-4 text-success" />{d}</li>)}

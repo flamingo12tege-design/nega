@@ -5,10 +5,23 @@
 -- approved package (investment), and only income EARNED AFTER that first
 -- approved purchase is withdrawable. Welcome/gift promotional credits and
 -- deposits/recharges are excluded. Pending withdrawal requests are reserved.
+-- Minimum withdrawal is ETB 300 (editable in public.platform_settings); there
+-- is no upper limit other than the member's earned balance. Amounts must be
+-- whole ETB. No withdrawals on Sunday, 3:00 AM - 11:00 PM EAT only, once/day.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
 reset role;
+
+create table if not exists public.platform_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.platform_settings (key, value)
+values ('minimum_withdrawal_amount', '300')
+on conflict (key) do update set value = excluded.value, updated_at = now();
 
 -- 1) Eligibility summary used by the app.
 create or replace function public.withdraw_eligibility()
@@ -58,7 +71,7 @@ as $wd$
     (select total from earned_income),
     (select total from pending_withdrawals),
     greatest(0, (select total from earned_income) - (select total from pending_withdrawals)),
-    50;
+    coalesce((select nullif(value, '')::numeric from public.platform_settings where key = 'minimum_withdrawal_amount'), 300);
 $wd$;
 
 revoke all on function public.withdraw_eligibility() from public;
@@ -89,6 +102,11 @@ declare
   v_pending numeric;
   v_available numeric;
   v_hash text;
+  v_min numeric := coalesce((
+    select nullif(value, '')::numeric
+    from public.platform_settings
+    where key = 'minimum_withdrawal_amount'
+  ), 300);
   v_id uuid;
   v_now timestamp := (now() at time zone 'Africa/Addis_Ababa');
   v_dow integer := extract(isodow from v_now)::integer; -- 1=Mon ... 7=Sun
@@ -99,6 +117,10 @@ begin
   end if;
   if v_amount <= 0 then
     raise exception 'Enter a valid withdrawal amount';
+  end if;
+  -- Fixed whole-ETB amounts only; there is no maximum cap.
+  if v_amount <> floor(v_amount) then
+    raise exception 'Withdrawal amount must be a whole ETB amount';
   end if;
 
   -- Withdrawal schedule: Monday-Saturday, 3:00 AM - 11:00 PM (EAT).
@@ -161,11 +183,11 @@ begin
   v_available := greatest(0, v_earned - v_pending);
 
   -- Minimum earned income / minimum withdrawal amount.
-  if v_available < 50 then
-    raise exception 'Withdrawals unlock at ETB 50 of earned income';
+  if v_available < v_min then
+    raise exception 'Withdrawals unlock at ETB % of earned income', v_min;
   end if;
-  if v_amount < 50 then
-    raise exception 'Minimum withdrawal is ETB 50';
+  if v_amount < v_min then
+    raise exception 'Minimum withdrawal is ETB %', v_min;
   end if;
   if v_amount > v_available then
     raise exception 'Amount exceeds your withdrawable income';
