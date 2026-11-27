@@ -164,3 +164,16 @@
   --color-tint-violet: var(--tint-violet);
   --color-tint-rose: var(--tint-rose);
 }
+
+@keyframes bolt-glow {
+  0%, 100% {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 rgba(255, 214, 102, 0);
+  }
+  50% {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 10px 3px rgba(255, 214, 102, 0.9);
+  }
+}
+
+.bolt-glow {
+  animation: bolt-glow 1.4s ease-in-out infinite;
+}

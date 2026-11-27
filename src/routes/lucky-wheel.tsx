@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Sparkles, Trophy, RotateCw, Info } from "lucide-react";
 import { PageHeader } from "@/components/cas/AppShell";
 import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
@@ -30,31 +30,46 @@ const segments = [
 const SLICE = 360 / segments.length;
 
 function Page() {
+  const discRef = useRef<HTMLDivElement>(null);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<string | null>(null);
 
   const spin = () => {
-    if (spinning) return;
+    if (spinning || !discRef.current) return;
     const index = Math.floor(Math.random() * segments.length);
 
-    // Each slice is centred on its angle (the gradient starts half a slice
-    // before 0deg), so rotating by -index * SLICE puts that slice exactly
-    // under the top pointer. Add full turns plus the shortest forward delta
-    // so every spin looks like a real spin and never reverses.
+    // Each slice is centred on its angle, so rotating by -index * SLICE puts
+    // it under the pointer. Add full turns + the shortest forward delta so
+    // the wheel always spins forward and never reverses.
     const currentMod = ((rotation % 360) + 360) % 360;
-    const desiredMod = ((360 - index * SLICE) % 360 + 360) % 360;
+    const desiredMod = (((360 - index * SLICE) % 360) + 360) % 360;
     let delta = desiredMod - currentMod;
     if (delta < 0) delta += 360;
     const target = rotation + 360 * 6 + delta;
 
     setResult(null);
     setSpinning(true);
-    setRotation(target);
-    window.setTimeout(() => {
+
+    // Physical-style spin: fast start, long deceleration, then a small
+    // overshoot/bounce as the winning slice settles under the pointer.
+    const animation = discRef.current.animate(
+      [
+        { transform: `rotate(${rotation}deg)`, offset: 0, easing: "cubic-bezier(0.12, 0.7, 0.12, 1)" },
+        { transform: `rotate(${target - 34}deg)`, offset: 0.8, easing: "ease-in-out" },
+        { transform: `rotate(${target + 8}deg)`, offset: 0.9, easing: "ease-in-out" },
+        { transform: `rotate(${target - 2}deg)`, offset: 0.96, easing: "ease-out" },
+        { transform: `rotate(${target}deg)`, offset: 1 },
+      ],
+      { duration: 4600, fill: "forwards" },
+    );
+
+    animation.onfinish = () => {
+      setRotation(target);
+      animation.cancel();
       setSpinning(false);
       setResult(segments[index]?.label ?? "Try again");
-    }, 4200);
+    };
   };
 
   const gradient = segments
@@ -94,8 +109,11 @@ function Page() {
               {Array.from({ length: 16 }).map((_, i) => (
                 <span
                   key={i}
-                  className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-b from-[#fff6cf] to-[#8a6410] shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
-                  style={{ transform: `translate(-50%, -50%) rotate(${i * 22.5}deg) translateY(-140px)` }}
+                  className="bolt-glow absolute left-1/2 top-1/2 h-2.5 w-2.5 rounded-full bg-gradient-to-b from-[#fffbe8] to-[#c99a1c]"
+                  style={{
+                    transform: `translate(-50%, -50%) rotate(${i * 22.5}deg) translateY(-140px)`,
+                    animationDuration: spinning ? "0.3s" : "1.4s",
+                  }}
                 />
               ))}
 
@@ -106,12 +124,11 @@ function Page() {
 
               {/* Rotating disc */}
               <div
-                className="absolute inset-[11px] rounded-full shadow-[inset_0_0_20px_rgba(0,0,0,0.35)] transition-transform ease-out"
+                ref={discRef}
+                className="absolute inset-[11px] rounded-full shadow-[inset_0_0_20px_rgba(0,0,0,0.35)]"
                 style={{
                   background: `conic-gradient(from ${-SLICE / 2}deg, ${gradient})`,
                   transform: `rotate(${rotation}deg)`,
-                  transitionDuration: spinning ? "4200ms" : "0ms",
-                  transitionTimingFunction: "cubic-bezier(0.12, 0.72, 0.08, 1)",
                 }}
               >
                 {/* Segment dividers */}
