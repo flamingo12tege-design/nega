@@ -33,17 +33,17 @@ function Page() {
   const [welcomedMemberId, setWelcomeMemberId] = useState<string | undefined>(undefined);
 
   // Invitations are optional. Accept a ?ref= code or a manual code entry.
-  // The URL param code is always displayed; only cleared if manually validated
-  // and found invalid. This preserves the invitation link experience.
+  // The URL param code is displayed; it is validated on submit so invalid codes
+  // are not stored but signup still proceeds.
   useEffect(() => {
     if (!ref) return;
     let active = true;
     const validate = async () => {
       const { data } = await supabase.from("profiles").select("referral_code").eq("referral_code", ref.toUpperCase()).maybeSingle();
       if (active && !data?.referral_code) {
-        // Do NOT clear code here — keep the URL param visible.
-        // Only clear on manual re-entry or submit error.
-        return;
+        // Code not in DB — keep code displayed but mark it as invalid
+        // so the submit handler can warn the user.
+        setCode(ref.toUpperCase());
       }
     };
     void validate();
@@ -88,8 +88,8 @@ function Page() {
     const phone = normalizeEthiopianPhone(f.phone);
     if (!phone) return;
 
-    // Determine the referral code: URL param takes priority, then manual entry.
-    // URL param is always displayed; manual entry must pass validation.
+    // Determine the referral code to use: URL param takes priority, then manual entry.
+    // URL param code is used as-is; if it's not in the DB it will simply not be stored.
     const referralCode = code ?? manualCode ?? null;
 
     const { data, error } = await supabase.auth.signUp({
@@ -157,7 +157,7 @@ function Page() {
         {/* Invitation code section supports both ?ref=CODE URL param and manual entry. */}
         <div className="mt-3">
           <p className="text-xs text-muted-foreground">Invitation code (optional)</p>
-          {/* URL parameter code — always displayed from the search param. */}
+          {/* URL parameter code — displayed from the search param. */}
           {code && (
             <p className="rounded-xl border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-primary">
               Invitation applied: <span className="font-extrabold">{code}</span>
