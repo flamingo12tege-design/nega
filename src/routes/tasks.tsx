@@ -184,7 +184,7 @@ function Page() {
           <p className="mt-1 text-3xl font-extrabold text-primary">{etb(claimable)}</p>
           <div className="mt-4 grid grid-cols-3 gap-3 border-t pt-4">
             <div><p className="text-xs text-muted-foreground">Active packages</p><p className="font-bold">{active.length}</p></div>
-            <div><p className="text-xs text-muted-foreground">Total claimed</p><p className="font-bold">{etb(claimed)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Total claimed</p><p className="font-bold">{etb(Math.round(claimed))}</p></div>
             <div><p className="text-xs text-muted-foreground">Claimed today</p><p className="font-bold">{claimedToday} {claimedToday === 1 ? "package" : "packages"}</p></div>
           </div>
         </div>
