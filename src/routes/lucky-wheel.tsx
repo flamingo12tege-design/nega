@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { Sparkles, Trophy, RotateCw, Info } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Sparkles, Trophy, RotateCw, Info, Crown } from "lucide-react";
 import { PageHeader } from "@/components/cas/AppShell";
 import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
+import { supabase } from "@/lib/supabase";
+import { etb, fmtDate } from "@/lib/format";
 
 export const Route = createFileRoute("/lucky-wheel")({
   head: () => ({
@@ -29,11 +31,34 @@ const segments = [
 
 const SLICE = 360 / segments.length;
 
+type Winner = {
+  id: string;
+  member_id: string | null;
+  prize: string;
+  amount: number;
+  created_at: string;
+};
+
 function Page() {
   const discRef = useRef<HTMLDivElement>(null);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<string | null>(null);
+  const [winners, setWinners] = useState<Winner[]>([]);
+
+  const loadWinners = async () => {
+    const { data, error } = await supabase.rpc("get_lucky_wheel_winners");
+    if (error || !Array.isArray(data)) return;
+    setWinners(data.map((row) => ({
+      id: String(row["id"] ?? ""),
+      member_id: row["member_id"] ? String(row["member_id"]) : null,
+      prize: String(row["prize"] ?? ""),
+      amount: Number(row["amount"]) || 0,
+      created_at: String(row["created_at"] ?? ""),
+    })));
+  };
+
+  useEffect(() => { void loadWinners(); }, []);
 
   const spin = () => {
     if (spinning || !discRef.current) return;
@@ -68,7 +93,14 @@ function Page() {
       setRotation(target);
       animation.cancel();
       setSpinning(false);
-      setResult(segments[index]?.label ?? "Try again");
+      const prize = segments[index]?.label ?? "Try again";
+      setResult(prize);
+
+      // Record the win so it appears in the public winners list.
+      const amount = prize.startsWith("ETB") ? Number(prize.replace(/\D/g, "")) : 0;
+      void supabase
+        .rpc("record_lucky_wheel_win", { p_prize_label: prize, p_amount: amount })
+        .then(() => loadWinners());
     };
   };
 
@@ -172,7 +204,34 @@ function Page() {
             {spinning ? <Sparkles className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
             {spinning ? "Spinning..." : "Spin the wheel"}
           </button>
+        </section>
 
+        {/* Recent winners */}
+        <section className="rounded-3xl bg-card p-5 shadow-card">
+          <div className="flex items-center gap-2">
+            <Crown className="h-4 w-4 text-accent" />
+            <h2 className="font-extrabold">Recent winners</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Latest real wins from the CAS community.</p>
+
+          {winners.length === 0 ? (
+            <p className="py-5 text-center text-sm text-muted-foreground">No winners yet. Be the first to spin!</p>
+          ) : (
+            <div className="mt-3 divide-y">
+              {winners.map((winner) => (
+                <div key={winner.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{winner.member_id ?? "CAS member"}</p>
+                    <p className="text-xs text-muted-foreground">{fmtDate(winner.created_at)}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-extrabold text-success">+{etb(winner.amount)}</p>
+                    <p className="text-[11px] text-muted-foreground">{winner.prize}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
 
