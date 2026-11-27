@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, ArrowDownToLine, ArrowUpFromLine, Download, LifeBuoy, Trophy } from "lucide-react";
+import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Download, LifeBuoy, Trophy } from "lucide-react";
+import { DepositIcon, WithdrawIcon } from "@/components/cas/MoneyIcons";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -104,8 +105,8 @@ function Home() {
       <Hero />
 
       <div className="mt-5 grid grid-cols-2 gap-3 px-5">
-        <Link to="/recharge" className="press flex items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-extrabold text-primary-foreground shadow-card"><ArrowDownToLine className="h-5 w-5 text-accent" />Recharge</Link>
-        <Link to="/withdraw" className="press flex items-center justify-center gap-2 rounded-2xl bg-accent py-3.5 font-extrabold text-accent-foreground shadow-card"><ArrowUpFromLine className="h-5 w-5" />Withdraw</Link>
+        <Link to="/recharge" className="press flex items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-extrabold text-primary-foreground shadow-card"><DepositIcon className="h-6 w-6" />Recharge</Link>
+        <Link to="/withdraw" className="press flex items-center justify-center gap-2 rounded-2xl bg-accent py-3.5 font-extrabold text-accent-foreground shadow-card"><WithdrawIcon className="h-6 w-6" />Withdraw</Link>
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-x-3 gap-y-4 px-5 sm:grid-cols-6">
