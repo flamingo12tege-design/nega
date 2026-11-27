@@ -1,9 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Download } from "lucide-react";
+import { Bell, Newspaper, Info, UserPlus } from "lucide-react";
 import { DepositIcon, WithdrawIcon } from "@/components/cas/MoneyIcons";
 import supportIcon from "@/assets/support.webp";
 import luckyWheelIcon from "@/assets/lucky-wheel.webp";
+import avatarIcon from "@/assets/avatar.webp";
+import giftIcon from "@/assets/gift.webp";
+import downloadIcon from "@/assets/download.webp";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -64,7 +67,7 @@ function Home() {
   const [memberId, setMemberId] = useState("CAS Member");
   const quick = [
     { to: "/news", label: "News", icon: Newspaper },
-    { to: "/gifts", label: "Gifts", icon: Gift },
+    { to: "/gifts", label: "Gifts", image: giftIcon },
     { to: "/lucky-wheel", label: "Lucky Wheel", image: luckyWheelIcon },
     { to: "/about", label: "About", icon: Info },
     { to: "/team", label: "Invite", icon: UserPlus },
@@ -100,7 +103,7 @@ function Home() {
           <Link to="/notifications" aria-label="Notifications" className="press relative grid h-10 w-10 place-items-center rounded-full bg-card shadow-card">
             <Bell className="h-5 w-5" />
           </Link>
-          <Link to="/profile" className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground"><UserRound className="h-5 w-5" /></Link>
+          <Link to="/profile" aria-label="Profile" className="grid h-10 w-10 place-items-center rounded-full bg-card shadow-card"><img src={avatarIcon} alt="" className="h-8 w-8 rounded-full object-cover" /></Link>
         </div>
       </header>
 
@@ -125,7 +128,7 @@ function Home() {
           </Link>
         ))}
         <a href="/base.apk" download className="press flex flex-col items-center gap-2">
-          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary text-accent shadow-card"><Download className="h-6 w-6" /></span>
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary p-2 shadow-card"><img src={downloadIcon} alt="" className="h-full w-full object-contain" /></span>
           <span className="text-center text-xs font-semibold leading-tight">App</span>
         </a>
       </div>

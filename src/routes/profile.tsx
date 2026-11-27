@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { UserRound, ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, PiggyBank, Landmark, Check } from "lucide-react";
+import { ReceiptText, ShoppingBag, Trophy, Users, Bell, ShieldCheck, LifeBuoy, Info, LogOut, ChevronRight, Clock3, ChartColumnIncreasing, HandCoins, Banknote, PiggyBank, Landmark, Check } from "lucide-react";
 import { fmtDate, etb, maskAccount } from "@/lib/format";
 import { actions, useStore } from "@/lib/store";
 import { Logo } from "@/components/cas/Logo";
@@ -10,6 +10,7 @@ import { useSupabaseWallet } from "@/lib/use-supabase-wallet";
 import { SecuritySettings, useWithdrawalPasswordStatus } from "@/components/cas/SecuritySettings";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys, useProfile, useSessionUser } from "@/lib/queries";
+import avatarIcon from "@/assets/avatar.webp";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — CAS" }, { name: "description", content: "Manage your CAS account, wallet and settings." }, { property: "og:title", content: "Profile — CAS" }, { property: "og:description", content: "Manage your CAS account, wallet and settings." }] }),
@@ -37,7 +38,7 @@ function Page() {
     <div>
       <header className="bg-primary px-5 pb-16 pt-6 text-primary-foreground lg:rounded-b-3xl">
         <div className="flex items-center gap-4">
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent text-xl font-extrabold text-accent-foreground"><UserRound className="h-7 w-7" /></span>
+          <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-accent"><img src={avatarIcon} alt="" className="h-full w-full object-cover" /></span>
           <div className="min-w-0">
             <h1 className="truncate text-xl font-extrabold">{profile?.member_id}</h1>
             <p className="text-sm opacity-75">{profile?.phone}</p>

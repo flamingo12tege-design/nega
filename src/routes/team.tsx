@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { UserRound, Copy, Send, MessageCircle, Users } from "lucide-react";
+import { Copy, Send, MessageCircle, Users } from "lucide-react";
+import avatarIcon from "@/assets/avatar.webp";
 import heroFriends from "@/assets/hero_friends.webp";
 import { rewardRules, type TeamMember } from "@/lib/mock-data";
 import {
@@ -276,7 +277,7 @@ function Page() {
                 </p>
               ) : activeGroup.members.map((m) => (
                 <div key={m.name} className="flex items-center gap-3 p-4 transition hover:bg-muted/40">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary"><UserRound className="h-5 w-5" /></span>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary"><img src={avatarIcon} alt="" className="h-full w-full object-cover" /></span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">{m.name}</p>
                     <p className="text-xs text-muted-foreground">VIP {m.vip} · <span className="tabular-nums">{etb(m.dailyIncome)}/day</span> · {fmtDate(m.joined)}</p>

@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Gift, TicketPercent, Sparkles } from "lucide-react";
+import { TicketPercent, Sparkles } from "lucide-react";
+import giftIcon from "@/assets/gift.webp";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/cas/AppShell";
 import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
@@ -91,8 +92,8 @@ function Page() {
       <div className="-mt-4 space-y-4 px-5">
         <section className="relative overflow-hidden rounded-3xl bg-primary p-6 text-primary-foreground shadow-card">
           <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-accent/20 blur-3xl" />
-          <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-accent/15 text-accent">
-            <Gift className="h-7 w-7" />
+          <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-accent/15 p-1.5">
+            <img src={giftIcon} alt="" className="h-full w-full object-contain" />
           </span>
           <p className="relative mt-4 text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Gift code</p>
           <h2 className="relative mt-1 text-2xl font-extrabold tracking-tight">Redeem your reward</h2>
