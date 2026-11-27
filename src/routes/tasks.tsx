@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, Clock3, PackageOpen, Users, type LucideIcon } from "lucide-react";
@@ -10,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { PageHeader, Section } from "@/components/cas/AppShell";
 import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
 import type { TaskStatus } from "@/lib/mock-data";
+import { walletQueryKey } from "@/lib/use-supabase-wallet";
 
 type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
 
@@ -29,6 +31,7 @@ const pill: Record<TaskStatus, string> = {
 };
 
 function Page() {
+  const queryClient = useQueryClient();
   const [success, setSuccess] = useState<SuccessCard | null>(null);
   const storedPurchases = useStore((s) => s.purchases);
   const [livePurchases, setLivePurchases] = useState<Array<{ id: string; package_id: string; amount: number; status: string; created_at: string }>>([]);
@@ -148,6 +151,7 @@ function Page() {
         { label: "Date", value: fmtDate(todayKey()) },
       ],
     });
+    void queryClient.invalidateQueries({ queryKey: walletQueryKey });
   };
 
   const claimTeam = () => {

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Gift, TicketPercent, Sparkles } from "lucide-react";
@@ -6,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
 import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
+import { walletQueryKey } from "@/lib/use-supabase-wallet";
 
 export const Route = createFileRoute("/gifts")({
   head: () => ({
@@ -28,6 +30,7 @@ type RedeemResult = {
 type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
 
 function Page() {
+  const queryClient = useQueryClient();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<SuccessCard | null>(null);
@@ -80,6 +83,7 @@ function Page() {
         ],
       });
       setCode("");
+      void queryClient.invalidateQueries({ queryKey: walletQueryKey });
     } catch {
       toast.error("Could not redeem gift code", { description: "Please try again." });
     } finally {
