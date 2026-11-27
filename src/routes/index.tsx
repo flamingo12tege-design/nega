@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Download, LifeBuoy, Trophy } from "lucide-react";
+import { UserRound, Bell, Newspaper, Gift, Info, UserPlus, Download } from "lucide-react";
 import { DepositIcon, WithdrawIcon } from "@/components/cas/MoneyIcons";
+import supportIcon from "@/assets/support.webp";
+import luckyWheelIcon from "@/assets/lucky-wheel.webp";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -63,10 +65,10 @@ function Home() {
   const quick = [
     { to: "/news", label: "News", icon: Newspaper },
     { to: "/gifts", label: "Gifts", icon: Gift },
-    { to: "/lucky-wheel", label: "Lucky Wheel", icon: Trophy },
+    { to: "/lucky-wheel", label: "Lucky Wheel", image: luckyWheelIcon },
     { to: "/about", label: "About", icon: Info },
     { to: "/team", label: "Invite", icon: UserPlus },
-    { to: "/support", label: "Support", icon: LifeBuoy },
+    { to: "/support", label: "Support", image: supportIcon },
   ] as const;
 
   useEffect(() => {
@@ -110,10 +112,16 @@ function Home() {
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-x-3 gap-y-4 px-5 sm:grid-cols-6">
-        {quick.map(({ to, label, icon: Icon }) => (
-          <Link key={label} to={to} className="press flex flex-col items-center gap-2">
-            <span className={`grid h-14 w-14 place-items-center rounded-2xl shadow-card ${to === "/support" ? "bg-primary text-accent" : "bg-card text-primary"}`}><Icon className="h-6 w-6" /></span>
-            <span className="text-center text-xs font-semibold leading-tight">{label}</span>
+        {quick.map((item) => (
+          <Link key={item.label} to={item.to} className="press flex flex-col items-center gap-2">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-card">
+              {"image" in item && item.image ? (
+                <img src={item.image} alt="" className="h-7 w-7 object-contain" />
+              ) : "icon" in item && item.icon ? (
+                <item.icon className="h-6 w-6" />
+              ) : null}
+            </span>
+            <span className="text-center text-xs font-semibold leading-tight">{item.label}</span>
           </Link>
         ))}
         <a href="/base.apk" download className="press flex flex-col items-center gap-2">

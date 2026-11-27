@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Trophy, RotateCw, Info, Crown } from "lucide-react";
+import { Sparkles, RotateCw, Info, Crown } from "lucide-react";
+import luckyWheelIcon from "@/assets/lucky-wheel.webp";
 import { PageHeader } from "@/components/cas/AppShell";
 import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
 import { supabase } from "@/lib/supabase";
@@ -115,8 +116,8 @@ function Page() {
       <div className="-mt-4 space-y-4 px-5">
         <section className="relative overflow-hidden rounded-3xl bg-primary p-6 text-center text-primary-foreground shadow-card">
           <div className="pointer-events-none absolute -left-10 -top-10 h-36 w-36 rounded-full bg-accent/20 blur-3xl" />
-          <span className="relative mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent/15 text-accent">
-            <Trophy className="h-6 w-6" />
+          <span className="relative mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-accent/15 p-1.5">
+            <img src={luckyWheelIcon} alt="" className="h-full w-full object-contain" />
           </span>
           <h2 className="relative mt-3 text-xl font-extrabold">Try your luck</h2>
           <p className="relative mt-1 text-sm text-primary-foreground/75">Rewards are credited after verification.</p>
