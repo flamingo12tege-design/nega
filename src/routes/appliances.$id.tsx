@@ -5,7 +5,7 @@ import { Check, Lock, WalletCards, X } from "lucide-react";
 import { etb } from "@/lib/format";
 import { rewardRules } from "@/lib/mock-data";
 import { actions, getPackage, useStore, MAX_PURCHASES_PER_PACKAGE } from "@/lib/store";
-import { SuccessModal } from "@/components/cas/SuccessModal";
+import { PurchaseSuccessModal } from "@/components/cas/PurchaseSuccessModal";
 import { supabase } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -137,21 +137,16 @@ function Page() {
           <button disabled={purchasing} onClick={purchase} className={`press mt-6 w-full rounded-2xl py-4 font-extrabold ${purchasing ? "cursor-not-allowed bg-muted text-muted-foreground" : "bg-accent text-accent-foreground"}`}>{purchasing ? "Processing..." : "Buy Now"}</button>
         )}
       </div>
-      <SuccessModal
+      <PurchaseSuccessModal
         open={successOpen}
         onOpenChange={setSuccessOpen}
-        title="Purchase successful"
-        description="The package was paid for with your wallet balance."
-        badge="Completed"
-        rows={[
-          { label: "Package", value: a.name },
-          { label: "Amount", value: etb(a.price) },
-          { label: "Payment method", value: paymentMethod },
-        ]}
+        packageName={a.name}
+        pointsLabel="Amount paid"
+        pointsValue={etb(a.price)}
         footer={
           <>
-            <button onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-secondary py-3 font-bold">Done</button>
-            <Link to="/wallet" onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-accent py-3 text-center font-bold text-accent-foreground">My purchases</Link>
+            <Link to="/wallet" onClick={() => setSuccessOpen(false)} className="press rounded-xl border border-success py-3 text-center font-bold text-success">Orders</Link>
+            <Link to="/" onClick={() => setSuccessOpen(false)} className="press rounded-xl bg-success py-3 text-center font-bold text-success-foreground">Home</Link>
           </>
         }
       />
