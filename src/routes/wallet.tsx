@@ -43,11 +43,11 @@ function Page() {
       <PageHeader title="My Wallet" back />
       <div className="-mt-4 mx-5 rounded-3xl bg-card p-5 shadow-card">
         <p className="text-xs text-muted-foreground">Available balance · withdrawable</p>
-        <p className="text-3xl font-extrabold text-primary">{etb(balance)}</p>
+        <p className="text-3xl font-extrabold text-primary">{etb(Math.round(balance))}</p>
         <div className="mt-4 grid grid-cols-3 gap-3 border-t pt-4">
-          <div><p className="text-xs text-muted-foreground">Available</p><p className="font-bold">{etb(wallet.balance)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Team bonus</p><p className="font-bold">{etb(wallet.teamBonus)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Pay income</p><p className="font-bold">{etb(wallet.payIncome)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Available</p><p className="font-bold">{etb(Math.round(wallet.balance))}</p></div>
+          <div><p className="text-xs text-muted-foreground">Team bonus</p><p className="font-bold">{etb(Math.round(wallet.teamBonus))}</p></div>
+          <div><p className="text-xs text-muted-foreground">Pay income</p><p className="font-bold">{etb(Math.round(wallet.payIncome))}</p></div>
         </div>
         <p className="mt-3 rounded-xl bg-muted p-3 text-xs text-muted-foreground">Bonuses are promotional credits and are kept separate from your withdrawable balance. Eligibility rules apply to each bonus type.</p>
       </div>
@@ -60,7 +60,7 @@ function Page() {
               <div key={purchase.id} className="flex items-center gap-3 p-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{purchase.package_id}</p>
-                  <p className="text-xs text-muted-foreground">{etb(purchase.amount)} · {purchase.payment_method}</p>
+                  <p className="text-xs text-muted-foreground">{etb(Math.round(purchase.amount))} · {purchase.payment_method}</p>
                 </div>
                 <StatusPill s={purchase.status === "approved" ? "Approved" : purchase.status === "rejected" ? "Rejected" : "Pending"} />
               </div>
@@ -80,7 +80,7 @@ function Page() {
                   <p className="text-sm font-bold">{t.type}</p>
                   <p className="text-xs text-muted-foreground">{fmtDate(t.date)} · <span className={`font-bold ${statusColor}`}>{status}</span></p>
                 </div>
-                <p className={`shrink-0 font-extrabold ${amountColor}`}>{t.amount > 0 ? "+" : ""}{etb(t.amount)}</p>
+                <p className={`shrink-0 font-extrabold ${amountColor}`}>{t.amount > 0 ? "+" : t.amount < 0 ? "-" : ""}{etb(Math.abs(Math.round(t.amount)))}</p>
               </div>
             );
           })}

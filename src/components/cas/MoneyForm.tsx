@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Check, LockKeyhole } from "lucide-react";
@@ -46,8 +46,10 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   };
   const n = Number(amount);
   const minPackageAmount = useStore(minimumRechargeAmount);
-  const packagePrices = useStore((s) =>
-    Array.from(new Set(s.packages.map((p) => Number(p.price)).filter((v) => Number.isFinite(v) && v > 0))).sort((a, b) => a - b),
+  const packages = useStore((s) => s.packages);
+  const packagePrices = useMemo(
+    () => Array.from(new Set(packages.map((p) => Number(p.price)).filter((v) => Number.isFinite(v) && v > 0))).sort((a, b) => a - b),
+    [packages],
   );
   const minimumAmount = kind === "Withdraw" ? rewardRules.minimumWithdrawal : minPackageAmount;
   const amountLabel = kind === "Withdraw" ? "withdrawal" : "recharge";
