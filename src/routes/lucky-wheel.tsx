@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Sparkles, Trophy, RotateCw, Info } from "lucide-react";
 import { PageHeader } from "@/components/cas/AppShell";
+import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
 
 export const Route = createFileRoute("/lucky-wheel")({
   head: () => ({
@@ -155,15 +156,16 @@ function Page() {
             {spinning ? "Spinning..." : "Spin the wheel"}
           </button>
 
-          {result && (
-            <div className="rise mt-6 w-full rounded-2xl bg-success/10 p-4 text-center">
-              <p className="text-xs font-semibold text-muted-foreground">The wheel stopped at</p>
-              <p className="mt-1 text-2xl font-extrabold text-success">{result}</p>
-              {result !== "Try again" && <p className="mt-1 text-xs text-muted-foreground">Credited after verification.</p>}
-            </div>
-          )}
         </section>
       </div>
+
+      <RedeemSuccessModal
+        open={result !== null}
+        onOpenChange={(open) => { if (!open) setResult(null); }}
+        amount={result && result.startsWith("ETB") ? Number(result.replace(/\D/g, "")) : 0}
+        title={result && result.startsWith("ETB") ? "Congratulations" : "Try again"}
+        amountLabel={result && result.startsWith("ETB") ? undefined : "Better luck next time"}
+      />
     </div>
   );
 }
