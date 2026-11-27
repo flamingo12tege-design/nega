@@ -144,7 +144,7 @@ function Page() {
       description: "Added to your withdrawable balance.",
       rows: [
         { label: "Package", value: appliance?.name ?? "Package" },
-        { label: "Amount", value: etb(amount) },
+        { label: "Amount", value: etb(Math.round(amount)) },
         { label: "Date", value: fmtDate(todayKey()) },
       ],
     });
