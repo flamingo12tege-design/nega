@@ -35,7 +35,7 @@ function Page() {
 
     actions.setLoggedIn(true);
     toast.success("Welcome back!");
-    nav({ to: "/" });
+    // Root auth guard redirects to "/" once the session state is observed.
   };
   return (
     <AuthLayout title="Welcome back" subtitle="Log in with your phone number">

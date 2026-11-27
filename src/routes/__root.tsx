@@ -19,7 +19,7 @@ import { Logo } from "@/components/cas/Logo";
 import { WelcomeModal } from "@/components/cas/WelcomeModal";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
-import { actions } from "@/lib/store";
+import { actions, useStore } from "@/lib/store";
 import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-data";
 import { WELCOME_QUEUED_EVENT, clearQueuedWelcome, getQueuedWelcome, type QueuedWelcome } from "@/lib/welcome";
 
@@ -166,8 +166,10 @@ function RootComponent() {
   const navigate = useNavigate();
   const [sessionReady, setSessionReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const storeLoggedIn = useStore((s) => s.loggedIn);
   const [welcome, setWelcome] = useState<QueuedWelcome | null>(null);
   const publicPath = isPublicPath(path);
+  const authed = hasSession || storeLoggedIn;
 
   // Strip credentials and bank details that may have been placed in a URL by
   // an old link, a copied screenshot URL or a malicious third party.
@@ -270,15 +272,15 @@ function RootComponent() {
   // URL guards: signed-out visitors are sent to the auth page, signed-in members skip it.
   useEffect(() => {
     if (!sessionReady) return;
-    if (!hasSession && !publicPath) {
+    if (!authed && !publicPath) {
       void navigate({ to: "/login", replace: true });
-    } else if (hasSession && (path === "/login" || path === "/register")) {
+    } else if (authed && (path === "/login" || path === "/register")) {
       void navigate({ to: "/", replace: true });
     }
-  }, [sessionReady, hasSession, publicPath, path, navigate]);
+  }, [sessionReady, authed, publicPath, path, navigate]);
 
   // Never render protected page content before the session is known (or while redirecting).
-  const showSplash = !sessionReady ? !publicPath : !hasSession && !publicPath;
+  const showSplash = !sessionReady ? !publicPath : !authed && !publicPath;
 
   return (
     <QueryClientProvider client={queryClient}>
