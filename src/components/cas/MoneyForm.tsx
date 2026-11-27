@@ -54,8 +54,18 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   const minimumAmount = kind === "Withdraw" ? rewardRules.minimumWithdrawal : minPackageAmount;
   const amountLabel = kind === "Withdraw" ? "withdrawal" : "recharge";
   const fee = kind === "Withdraw" ? (n * rewardRules.withdrawalFeePercent) / 100 : 0;
+  // Withdrawals: chips must never exceed what the member can actually take out.
+  const withdrawQuick = useMemo(() => {
+    const cap = max ?? Infinity;
+    const list = [50, 300, 500, 1000, 5000].filter((v) => v <= cap);
+    if (list.length < 4) {
+      const remainder = Math.floor(cap);
+      if (remainder >= minimumAmount && !list.includes(remainder)) list.push(remainder);
+    }
+    return list.slice(0, 4);
+  }, [max, minimumAmount]);
   const quickAmounts = kind === "Withdraw"
-    ? [300, 500, 1000, 5000]
+    ? withdrawQuick
     : (packagePrices.length > 0 ? packagePrices : [minPackageAmount]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +116,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
   };
   return (
     <form onSubmit={submit} className="-mt-4 mx-5 space-y-4 rounded-3xl bg-card p-5 shadow-card">
-      {max !== undefined && <p className="text-sm text-muted-foreground">Withdrawable income: <span className="font-bold text-primary">{etb(max)}</span></p>}
+      {max !== undefined && kind === "Recharge" && <p className="text-sm text-muted-foreground">Withdrawable income: <span className="font-bold text-primary">{etb(max)}</span></p>}
       <label className="block"><span className="text-sm font-semibold">Amount (ETB)</span>
         <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="0" className="mt-1 w-full rounded-xl border bg-surface px-4 py-3 text-xl font-bold outline-none focus:border-accent" />
       </label>
@@ -120,7 +130,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
           <p>Minimum recharge: {etb(minimumAmount)} — the price of the cheapest available package.</p>
         )}
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(quickAmounts.length, 4))}, minmax(0, 1fr))` }}>
         {quickAmounts.map((v) => <button type="button" key={v} onClick={() => setAmount(String(v))} className="press rounded-xl bg-secondary py-2 text-xs font-bold">{v.toLocaleString()}</button>)}
       </div>
       <div className="flex flex-col gap-4">
@@ -171,7 +181,7 @@ export function MoneyForm({ kind, max, payoutAccount }: { kind: "Recharge" | "Wi
         )}
       </div>
       <button className="press w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">{kind}</button>
-      <p className="text-center text-xs text-muted-foreground">{kind === "Withdraw" ? "Deposits and earned income are both withdrawable — no package purchase is required." : "Your balance updates after the payment is confirmed."}</p>
+      <p className="text-center text-xs text-muted-foreground">{kind === "Withdraw" ? "Only income your package earns can be withdrawn — deposits and promo credits stay in your wallet." : "Your balance updates after the payment is confirmed."}</p>
     </form>
   );
 }

@@ -1,12 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Bell, Newspaper, Info, UserPlus } from "lucide-react";
+import { Bell } from "lucide-react";
 import { DepositIcon, WithdrawIcon } from "@/components/cas/MoneyIcons";
 import supportIcon from "@/assets/support.webp";
 import luckyWheelIcon from "@/assets/lucky-wheel.webp";
 import avatarIcon from "@/assets/avatar.webp";
 import giftIcon from "@/assets/gift.webp";
 import downloadIcon from "@/assets/download.webp";
+import newsIcon from "@/assets/news.webp";
+import aboutIcon from "@/assets/about.webp";
+import inviteIcon from "@/assets/invite.webp";
 import { heroSlides } from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
@@ -66,11 +69,11 @@ function Home() {
   const packages = useStore((s) => s.packages);
   const [memberId, setMemberId] = useState("CAS Member");
   const quick = [
-    { to: "/news", label: "News", icon: Newspaper },
+    { to: "/news", label: "News", image: newsIcon },
     { to: "/gifts", label: "Gifts", image: giftIcon },
     { to: "/lucky-wheel", label: "Lucky Wheel", image: luckyWheelIcon },
-    { to: "/about", label: "About", icon: Info },
-    { to: "/team", label: "Invite", icon: UserPlus },
+    { to: "/about", label: "About", image: aboutIcon },
+    { to: "/team", label: "Invite", image: inviteIcon },
     { to: "/support", label: "Support", image: supportIcon },
   ] as const;
 
@@ -118,11 +121,7 @@ function Home() {
         {quick.map((item) => (
           <Link key={item.label} to={item.to} className="press flex flex-col items-center gap-2">
             <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-primary shadow-card">
-              {"image" in item && item.image ? (
-                <img src={item.image} alt="" className="h-7 w-7 object-contain" />
-              ) : "icon" in item && item.icon ? (
-                <item.icon className="h-6 w-6" />
-              ) : null}
+              <img src={item.image} alt="" className="h-7 w-7 object-contain" />
             </span>
             <span className="text-center text-xs font-semibold leading-tight">{item.label}</span>
           </Link>
