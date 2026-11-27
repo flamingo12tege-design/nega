@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Gift, TicketPercent, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
+import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
 
 export const Route = createFileRoute("/gifts")({
   head: () => ({
@@ -21,11 +22,15 @@ export const Route = createFileRoute("/gifts")({
 type RedeemResult = {
   amount?: number;
   message?: string;
+  code?: string;
 };
+
+type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
 
 function Page() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState<SuccessCard | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,11 +67,17 @@ function Page() {
       const result = (data && typeof data === "object" ? data : {}) as RedeemResult;
       const amount = Number(result.amount);
       const hasAmount = Number.isFinite(amount) && amount > 0;
+      const redeemedCode = String(result.code ?? normalized).toUpperCase();
 
-      toast.success("Gift code redeemed", {
+      setSuccess({
+        title: "Gift code redeemed",
         description: hasAmount
-          ? `${etb(amount)} has been added to your account.`
+          ? `${etb(Math.round(amount))} has been added to your account.`
           : result.message || "Your gift has been applied successfully.",
+        rows: [
+          ...(hasAmount ? [{ label: "Amount", value: etb(Math.round(amount)) }] : []),
+          { label: "Code", value: redeemedCode },
+        ],
       });
       setCode("");
     } catch {
@@ -135,6 +146,21 @@ function Page() {
           </div>
         </section>
       </div>
+
+      <SuccessModal
+        open={success !== null}
+        onOpenChange={(open) => { if (!open) setSuccess(null); }}
+        title={success?.title ?? "Gift redeemed"}
+        description={success?.description}
+        badge="Completed"
+        rows={success?.rows}
+        footer={
+          <>
+            <button onClick={() => setSuccess(null)} className="press rounded-xl bg-secondary py-3 font-bold">Done</button>
+            <Link to="/wallet" onClick={() => setSuccess(null)} className="press rounded-xl bg-accent py-3 text-center font-bold text-accent-foreground">View wallet</Link>
+          </>
+        }
+      />
     </div>
   );
 }
