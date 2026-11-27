@@ -1,12 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Gift, TicketPercent, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { etb } from "@/lib/format";
 import { PageHeader } from "@/components/cas/AppShell";
-import { SuccessModal, type SuccessRow } from "@/components/cas/SuccessModal";
+import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
 import { walletQueryKey } from "@/lib/use-supabase-wallet";
 
 export const Route = createFileRoute("/gifts")({
@@ -27,7 +26,7 @@ type RedeemResult = {
   code?: string;
 };
 
-type SuccessCard = { title: string; description: string; rows: SuccessRow[] };
+type SuccessCard = { amount: number; code: string };
 
 function Page() {
   const queryClient = useQueryClient();
@@ -73,14 +72,8 @@ function Page() {
       const redeemedCode = String(result.code ?? normalized).toUpperCase();
 
       setSuccess({
-        title: "Gift code redeemed",
-        description: hasAmount
-          ? `${etb(Math.round(amount))} has been added to your account.`
-          : result.message || "Your gift has been applied successfully.",
-        rows: [
-          ...(hasAmount ? [{ label: "Amount", value: etb(Math.round(amount)) }] : []),
-          { label: "Code", value: redeemedCode },
-        ],
+        amount: hasAmount ? Math.round(amount) : 0,
+        code: redeemedCode,
       });
       setCode("");
       void queryClient.invalidateQueries({ queryKey: walletQueryKey });
@@ -151,19 +144,11 @@ function Page() {
         </section>
       </div>
 
-      <SuccessModal
+      <RedeemSuccessModal
         open={success !== null}
         onOpenChange={(open) => { if (!open) setSuccess(null); }}
-        title={success?.title ?? "Gift redeemed"}
-        description={success?.description}
-        badge="Completed"
-        rows={success?.rows}
-        footer={
-          <>
-            <button onClick={() => setSuccess(null)} className="press rounded-xl bg-secondary py-3 font-bold">Done</button>
-            <Link to="/wallet" onClick={() => setSuccess(null)} className="press rounded-xl bg-accent py-3 text-center font-bold text-accent-foreground">View wallet</Link>
-          </>
-        }
+        amount={success?.amount ?? 0}
+        message={success?.amount ? undefined : "Your gift has been applied successfully."}
       />
     </div>
   );
