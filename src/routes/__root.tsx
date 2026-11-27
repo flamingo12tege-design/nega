@@ -21,7 +21,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { actions } from "@/lib/store";
 import { appliances as seedAppliances, defaultPackageImage } from "@/lib/mock-data";
-import { clearQueuedWelcome, getQueuedWelcome, type QueuedWelcome } from "@/lib/welcome";
+import { WELCOME_QUEUED_EVENT, clearQueuedWelcome, getQueuedWelcome, type QueuedWelcome } from "@/lib/welcome";
 
 function NotFoundComponent() {
   return (
@@ -192,21 +192,28 @@ function RootComponent() {
   }, [path]);
 
   // Show the new-member announcement as a popup on the homepage only.
-// Re-check on navigation because the flag is queued after registration,
-// while the root is already mounted. No timer - show immediately on "/".
-useEffect(() => {
-  if (path !== "/") {
-    setWelcome(null);
-    return;
-  }
-  const queued = getQueuedWelcome();
-  if (!queued) {
-    setWelcome(null);
-    return;
-  }
-  setWelcome(queued);
-  clearQueuedWelcome();
-}, [path]);
+  // The queue is often written after the post-signup redirect has already
+  // navigated to "/", so listening for the queue event (in addition to path
+  // changes) guarantees the announcement is never skipped on first login.
+  useEffect(() => {
+    const syncWelcome = () => {
+      if (path !== "/") {
+        setWelcome(null);
+        return;
+      }
+      const queued = getQueuedWelcome();
+      if (!queued) {
+        setWelcome(null);
+        return;
+      }
+      setWelcome(queued);
+      clearQueuedWelcome();
+    };
+
+    syncWelcome();
+    window.addEventListener(WELCOME_QUEUED_EVENT, syncWelcome);
+    return () => window.removeEventListener(WELCOME_QUEUED_EVENT, syncWelcome);
+  }, [path]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {

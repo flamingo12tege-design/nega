@@ -1,11 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { normalizeEthiopianPhone } from "@/lib/phone";
 import { AuthLayout, PasswordField, PhoneField } from "@/components/cas/AuthUi";
 import { supabase, phoneToEmail } from "@/lib/supabase";
-import { queueWelcome, clearQueuedWelcome } from "@/lib/welcome";
-import { WelcomeModal } from "@/components/cas/WelcomeModal";
+import { queueWelcome } from "@/lib/welcome";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (s: Record<string, unknown>) => ({ ref: typeof s["ref"] === "string" ? s["ref"] : undefined }),
@@ -20,62 +19,74 @@ export const Route = createFileRoute("/register")({
   component: Page,
 });
 
+/** Invitation codes are member IDs: uppercase letters and digits only. */
+const normalizeInviteCode = (value: string) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+type InviteStatus = "idle" | "checking" | "valid" | "invalid" | "unavailable";
+
 function Page() {
   const { ref } = Route.useSearch();
-  const [code, setCode] = useState<string | undefined>(ref?.toUpperCase());
+  const navigate = useNavigate();
   const [f, setF] = useState({ phone: "", pw: "", pw2: "" });
   const [err, setErr] = useState<Record<string, string | undefined>>({});
-  const navigate = useNavigate();
 
-  // State for the welcome modal that appears after successful signup.
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [welcomedCredited, setWelcomeCredited] = useState(false);
-  const [welcomedMemberId, setWelcomeMemberId] = useState<string | undefined>(undefined);
+  // Invitation code: shown as a normal form field, pre-filled from ?ref=CODE.
+  const [inviteInput, setInviteInput] = useState(() => (ref ? normalizeInviteCode(ref) : ""));
+  const [inviteStatus, setInviteStatus] = useState<InviteStatus>(ref ? "checking" : "idle");
+  const [inviteVerified, setInviteVerified] = useState<string | null>(null);
+  // Guards against an older in-flight check overwriting a newer result.
+  const inviteRequest = useRef(0);
 
-  // Invitations are optional. Accept a ?ref= code or a manual code entry.
-  // The URL param code is displayed; it is validated on submit so invalid codes
-  // are not stored but signup still proceeds.
-  useEffect(() => {
-    if (!ref) return;
-    let active = true;
-    const validate = async () => {
-      const { data } = await supabase.from("profiles").select("referral_code").eq("referral_code", ref.toUpperCase()).maybeSingle();
-      if (active && !data?.referral_code) {
-        // Code not in DB — keep code displayed but mark it as invalid
-        // so the submit handler can warn the user.
-        setCode(ref.toUpperCase());
+  /**
+   * Ask the database whether an invitation code belongs to a real member.
+   * Signed-out visitors cannot read `profiles` (RLS), so this goes through the
+   * `referral_code_exists` security-definer RPC.
+   */
+  const verifyInvite = async (raw: string): Promise<boolean> => {
+    const code = normalizeInviteCode(raw);
+    const requestId = ++inviteRequest.current;
+
+    if (!code) {
+      if (requestId === inviteRequest.current) {
+        setInviteStatus("idle");
+        setInviteVerified(null);
       }
-    };
-    void validate();
-    return () => { active = false; };
-  }, [ref]);
-
-  // Manual invitation code validation state.
-  const [manualCode, setManualCode] = useState<string | undefined>(undefined);
-  const [manualCodeValid, setManualCodeValid] = useState(false);
-  const [manualCodeLoading, setManualCodeLoading] = useState(false);
-
-  const validateManualCode = async (code: string) => {
-    setManualCodeLoading(true);
-    try {
-      const { data, error } = await supabase.from("profiles").select("referral_code").eq("referral_code", code.toUpperCase()).maybeSingle();
-      if (error || !data?.referral_code) {
-        setManualCodeValid(false);
-        toast.error("Invalid invitation code", { description: "This referral code does not belong to a registered member." });
-      } else {
-        setManualCodeValid(true);
-        setManualCode(code.toUpperCase());
-        toast.success("Invitation code applied", { description: "Code validated and will be used for this signup." });
-      }
-    } catch {
-      setManualCodeValid(false);
-      toast.error("Could not validate invitation code", { description: "Please try again." });
-    } finally {
-      setManualCodeLoading(false);
+      return false;
     }
+
+    setInviteStatus("checking");
+    const { data, error } = await supabase.rpc("referral_code_exists", { p_code: code });
+
+    if (requestId !== inviteRequest.current) return false;
+
+    if (error) {
+      // Most commonly the SQL helper has not been installed yet. Never treat an
+      // unverifiable code as valid.
+      setInviteStatus("unavailable");
+      setInviteVerified(null);
+      return false;
+    }
+
+    if (data === true) {
+      setInviteStatus("valid");
+      setInviteVerified(code);
+      return true;
+    }
+
+    setInviteStatus("invalid");
+    setInviteVerified(null);
+    return false;
   };
 
+  // Validate the invitation link as soon as the page loads.
+  useEffect(() => {
+    if (ref) void verifyInvite(ref);
+    // Only run for the initial link; manual edits are validated on demand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref]);
+
   const up = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next = {
@@ -88,14 +99,28 @@ function Page() {
     const phone = normalizeEthiopianPhone(f.phone);
     if (!phone) return;
 
-    // Determine the referral code to use: URL param takes priority, then manual entry.
-    // URL param code is used as-is; if it's not in the DB it will simply not be stored.
-    const referralCode = code ?? manualCode ?? null;
+    // Re-validate right before signup. A code is stored only when the database
+    // confirms it belongs to a real member; invalid codes are silently dropped
+    // so they can never appear as "applied" or be saved on the profile.
+    let referralCode: string | null = null;
+    if (normalizeInviteCode(inviteInput)) {
+      const ok = await verifyInvite(inviteInput);
+      if (ok) {
+        referralCode = normalizeInviteCode(inviteInput);
+      } else {
+        toast.error("Invalid invitation code", {
+          description: "That code does not belong to a registered member, so it was not applied.",
+        });
+      }
+    }
+
+    // One ID for the auth metadata, the profile row and the welcome modal.
+    const generatedMemberId = `CAS-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const { data, error } = await supabase.auth.signUp({
       email: phoneToEmail(phone),
       password: f.pw,
-      options: { data: { phone, member_id: `CAS-${Math.floor(100000 + Math.random() * 900000)}`, referral_code: referralCode } },
+      options: { data: { phone, member_id: generatedMemberId, referral_code: referralCode } },
     });
 
     if (error) {
@@ -106,14 +131,13 @@ function Page() {
           : error.message,
       });
       toast.error("Could not create account", { description: error.message });
-      setManualCodeUndefined();
       return;
     }
 
     if (data.user) {
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
-        member_id: `CAS-${Math.floor(100000 + Math.random() * 900000)}`,
+        member_id: generatedMemberId,
         phone,
         role: "user",
         wallet_balance: 0,
@@ -123,7 +147,6 @@ function Page() {
       if (profileError) {
         setErr({ phone: profileError.message });
         toast.error("Could not save your profile", { description: profileError.message });
-        setManualCodeUndefined();
         return;
       }
 
@@ -132,20 +155,30 @@ function Page() {
       const credited = !bonusError && Number(bonus ?? 0) > 0;
       const signedIn = Boolean(data.session);
 
-      queueWelcome({ credited, memberId: `CAS-${Math.floor(100000 + Math.random() * 900000)}`, signedIn });
-      setWelcomeCredited(credited);
-      setWelcomeMemberId(`CAS-${Math.floor(100000 + Math.random() * 900000)}`);
-      setShowWelcome(true);
-      return;
+      // The root layout owns the announcement and shows it on the homepage.
+      queueWelcome({ credited, memberId: generatedMemberId, signedIn });
+
+      if (!signedIn) {
+        toast.success("Account created", { description: "Log in to see your welcome bonus." });
+        navigate({ to: "/login" });
+      }
     }
-
-    navigate({ to: "/login" });
   };
 
-  const setManualCodeUndefined = () => {
-    setManualCode(undefined);
-    setManualCodeValid(false);
-  };
+  const inviteMessage = (() => {
+    switch (inviteStatus) {
+      case "checking":
+        return { tone: "text-muted-foreground", text: "Checking invitation code…" };
+      case "valid":
+        return { tone: "text-success", text: `Invitation applied: ${inviteVerified ?? ""}` };
+      case "invalid":
+        return { tone: "text-destructive", text: "Invalid invitation code — it will not be applied." };
+      case "unavailable":
+        return { tone: "text-muted-foreground", text: "Could not verify this code right now — it will not be applied." };
+      default:
+        return null;
+    }
+  })();
 
   return (
     <AuthLayout title="Join CAS" subtitle="Just your phone and a password.">
@@ -154,40 +187,44 @@ function Page() {
         <PasswordField label="Password" placeholder="Min. 8 characters" value={f.pw} onChange={up("pw")} error={err["pw"]} />
         <PasswordField label="Confirm Password" value={f.pw2} onChange={up("pw2")} error={err["pw2"]} />
 
-        {/* Invitation code section supports both ?ref=CODE URL param and manual entry. */}
+        {/* Invitation code: always a visible field, pre-filled from ?ref=CODE. */}
         <div className="mt-3">
-          <p className="text-xs text-muted-foreground">Invitation code (optional)</p>
-          {/* URL parameter code — displayed from the search param. */}
-          {code && (
-            <p className="rounded-xl border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-primary">
-              Invitation applied: <span className="font-extrabold">{code}</span>
-            </p>
-          )}
-          {!code && (
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="text"
-                value={manualCode ?? ""}
-                onChange={(e) => setManualCode(e.target.value.trim().toUpperCase() || undefined)}
-                placeholder="Enter referral code"
-                maxLength="20"
-                className="min-w-0 flex-1 rounded-xl border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                disabled={manualCodeLoading}
-                aria-label="Referral code"
-              />
-              <button
-                type="button"
-                onClick={() => manualCode && validateManualCode(manualCode)}
-                disabled={!manualCode || manualCodeLoading}
-                className="press rounded-xl bg-secondary px-3 py-2.5 text-sm font-bold text-primary"
-              >
-                Validate
-              </button>
-            </div>
-          )}
-          {manualCodeValid && !code && (
-            <p className="mt-2 rounded-xl border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-primary">
-              Invitation applied: <span className="font-extrabold">{manualCode}</span>
+          <label htmlFor="invite-code" className="text-xs font-semibold text-muted-foreground">
+            Invitation code (optional)
+          </label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              id="invite-code"
+              type="text"
+              value={inviteInput}
+              onChange={(e) => {
+                inviteRequest.current += 1;
+                setInviteInput(normalizeInviteCode(e.target.value));
+                setInviteStatus("idle");
+                setInviteVerified(null);
+              }}
+              placeholder="e.g. CAS321986"
+              maxLength={20}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              className="min-w-0 flex-1 rounded-xl border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              disabled={inviteStatus === "checking"}
+              aria-label="Invitation code"
+              aria-describedby="invite-code-status"
+            />
+            <button
+              type="button"
+              onClick={() => void verifyInvite(inviteInput)}
+              disabled={!inviteInput || inviteStatus === "checking"}
+              className="press rounded-xl bg-secondary px-3 py-2.5 text-sm font-bold text-primary disabled:opacity-50"
+            >
+              Validate
+            </button>
+          </div>
+          {inviteMessage && (
+            <p id="invite-code-status" role="status" className={`mt-2 text-xs font-semibold ${inviteMessage.tone}`}>
+              {inviteMessage.text}
             </p>
           )}
         </div>
@@ -195,16 +232,6 @@ function Page() {
         <button className="press !mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground">Create account</button>
         <p className="text-center text-sm">Have an account? <Link to="/login" className="font-semibold text-accent">Log in</Link></p>
       </form>
-
-      {/* Welcome modal that appears after successful registration, without navigating away. */}
-      {showWelcome && (
-        <WelcomeModal
-          credited={welcomedCredited}
-          memberId={welcomedMemberId}
-          onContinue={() => setShowWelcome(false)}
-          continueLabel="Join the channel"
-        />
-      )}
     </AuthLayout>
   );
 }
