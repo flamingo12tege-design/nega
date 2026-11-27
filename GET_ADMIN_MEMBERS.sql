@@ -5,15 +5,15 @@ security definer
 set search_path = public
 as $$
 declare
-  v_admin public.profiles%rowtype;
+  v_role text;
 begin
-  select * into v_admin from public.profiles where id = auth.uid();
+  select role into v_role from public.profiles where id = auth.uid();
 
-  if v_admin.role <> 'admin' then
+  if coalesce(v_role, '') <> 'admin' then
     raise exception 'Admin access required';
   end if;
 
-  return (
+  return coalesce((
     select jsonb_agg(
       jsonb_build_object(
         'id', p.id,
@@ -23,10 +23,11 @@ begin
         'wallet_balance', p.wallet_balance,
         'created_at', p.created_at
       )
+      order by p.created_at desc
     )
     from public.profiles p
     where p.role = 'user'
-  );
+  ), '[]'::jsonb);
 end;
 $$;
 
