@@ -1,10 +1,10 @@
 -- Withdrawal eligibility: earned income only
 -- Run this in the Supabase SQL Editor. Safe to re-run.
 --
--- New rule: deposited money cannot be withdrawn. A member must first buy a
--- package, earn at least ETB 300 of non-deposit income (daily income, task
--- rewards, commissions and bonuses), and only that earned income may be
--- withdrawn. Pending withdrawal requests are reserved.
+-- New rule: deposited money cannot be withdrawn. A member must first buy an
+-- approved package (investment), and only income EARNED AFTER that first
+-- approved purchase is withdrawable. Welcome/gift promotional credits and
+-- deposits/recharges are excluded. Pending withdrawal requests are reserved.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
@@ -24,46 +24,40 @@ stable
 security definer
 set search_path = public
 as $wd$
+  with first_investment as (
+    select min(created_at) as invested_at
+    from public.purchases
+    where user_id = auth.uid()
+      and lower(coalesce(status, '')) in ('approved', 'completed')
+  ),
+  earned_income as (
+    select coalesce(sum(l.amount), 0) as total
+    from public.wallet_ledger l
+    cross join first_investment fi
+    where l.user_id = auth.uid()
+      and l.status = 'completed'
+      and l.amount > 0
+      and fi.invested_at is not null
+      and l.created_at >= fi.invested_at
+      -- Only income earned after investing counts. Promotional credits
+      -- (welcome/gift) and deposits/recharges are deliberately excluded.
+      and lower(coalesce(l.type, '')) in (
+        'daily_income', 'team_commission', 'recruitment_bonus',
+        'referral_bonus', 'task_reward', 'commission', 'pay_income'
+      )
+  ),
+  pending_withdrawals as (
+    select coalesce(sum(abs(amount)), 0) as total
+    from public.wallet_ledger
+    where user_id = auth.uid()
+      and type = 'withdrawal'
+      and status = 'pending'
+  )
   select
-    exists (
-      select 1
-      from public.purchases
-      where user_id = auth.uid()
-        and lower(coalesce(status, '')) in ('approved', 'completed')
-    ),
-    coalesce((
-      select sum(amount)
-      from public.wallet_ledger
-      where user_id = auth.uid()
-        and status = 'completed'
-        and amount > 0
-        and lower(coalesce(type, '')) not in ('recharge', 'deposit')
-    ), 0),
-    coalesce((
-      select sum(abs(amount))
-      from public.wallet_ledger
-      where user_id = auth.uid()
-        and type = 'withdrawal'
-        and status = 'pending'
-    ), 0),
-    greatest(
-      0,
-      coalesce((
-        select sum(amount)
-        from public.wallet_ledger
-        where user_id = auth.uid()
-          and status = 'completed'
-          and amount > 0
-          and lower(coalesce(type, '')) not in ('recharge', 'deposit')
-      ), 0)
-      - coalesce((
-        select sum(abs(amount))
-        from public.wallet_ledger
-        where user_id = auth.uid()
-          and type = 'withdrawal'
-          and status = 'pending'
-      ), 0)
-    ),
+    (select invested_at is not null from first_investment),
+    (select total from earned_income),
+    (select total from pending_withdrawals),
+    greatest(0, (select total from earned_income) - (select total from pending_withdrawals)),
     50;
 $wd$;
 
@@ -136,14 +130,24 @@ begin
     raise exception 'Buy a package before requesting a withdrawal';
   end if;
 
-  -- Only earned income counts. Deposits and recharges are excluded.
+  -- Only income earned after the first approved package counts.
+  -- Deposits, recharges, welcome and gift credits are excluded.
   v_earned := coalesce((
-    select sum(amount)
-    from public.wallet_ledger
-    where user_id = v_user_id
-      and status = 'completed'
-      and amount > 0
-      and lower(coalesce(type, '')) not in ('recharge', 'deposit')
+    select sum(l.amount)
+    from public.wallet_ledger l
+    where l.user_id = v_user_id
+      and l.status = 'completed'
+      and l.amount > 0
+      and l.created_at >= (
+        select min(created_at)
+        from public.purchases
+        where user_id = v_user_id
+          and lower(coalesce(status, '')) in ('approved', 'completed')
+      )
+      and lower(coalesce(l.type, '')) in (
+        'daily_income', 'team_commission', 'recruitment_bonus',
+        'referral_bonus', 'task_reward', 'commission', 'pay_income'
+      )
   ), 0);
 
   v_pending := coalesce((
