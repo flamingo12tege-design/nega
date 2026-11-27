@@ -130,7 +130,7 @@ function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> 
         {tiles.map(({ l, v, i: Icon, t }) => (
           <div key={l} className="rounded-2xl bg-card p-4 shadow-card">
             <span className={`grid h-10 w-10 place-items-center rounded-full text-primary ${t}`}><Icon className="h-5 w-5" /></span>
-            <p className="mt-3 font-extrabold">{etb(v)}</p>
+            <p className="mt-3 font-extrabold">{etb(Math.round(v))}</p>
             <p className="text-xs text-muted-foreground">{l}</p>
           </div>
         ))}
@@ -140,7 +140,7 @@ function WalletStats({ wallet }: { wallet: ReturnType<typeof useSupabaseWallet> 
           <div key={l} className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-tint-green text-primary"><Icon className="h-5 w-5" /></span>
             <span className="flex-1 text-sm font-semibold">{l}</span>
-            <span className="font-extrabold text-accent">{etb(v)}</span>
+            <span className="font-extrabold text-accent">{etb(Math.round(v))}</span>
           </div>
         ))}
       </div>
