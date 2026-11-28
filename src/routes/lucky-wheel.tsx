@@ -21,13 +21,13 @@ export const Route = createFileRoute("/lucky-wheel")({
       {
         name: "description",
         content:
-          "Spin the CAS lucky wheel for ETB 50, ETB 100, or a VIP ETB 2,000 jackpot.",
+          "Spin for ETB 10-50. VIP2+ get better odds; locked/VIP5+ can hit the rare ETB 2,000 jackpot.",
       },
       { property: "og:title", content: "Lucky Wheel — CAS" },
       {
         property: "og:description",
         content:
-          "Spin the CAS lucky wheel for ETB 50, ETB 100, or a VIP ETB 2,000 jackpot.",
+          "Spin for ETB 10-50. VIP2+ get better odds; locked/VIP5+ can hit the rare ETB 2,000 jackpot.",
       },
     ],
   }),
@@ -59,12 +59,15 @@ function Page() {
   const spinsRuleUnavailable = spinStatus?.unavailable ?? false;
   const spinsError = spinStatus?.error ?? null;
 
-  // ETB 2,000 is a members-only prize slice, not a standard wheel outcome.
+  // ETB 2,000 is a rare members-only slice; the server controls the odds.
   const segments = [
-    { label: "ETB 50", color: "#f59e0b" },
-    { label: "ETB 100", color: "#0e7a4a" },
-    ...(jackpotUnlocked ? [{ label: "ETB 2,000", color: "#b45309" }] : []),
+    { label: "ETB 10", color: "#0e7a4a" },
     { label: "Try again", color: "#7c3aed" },
+    { label: "ETB 20", color: "#f59e0b" },
+    { label: "ETB 30", color: "#2563eb" },
+    { label: "ETB 40", color: "#db2777" },
+    { label: "ETB 50", color: "#b45309" },
+    ...(jackpotUnlocked ? [{ label: "ETB 2,000", color: "#eab308" }] : []),
   ];
   const slice = 360 / segments.length;
 
@@ -88,10 +91,41 @@ function Page() {
     void loadWinners();
   }, []);
 
-  const spin = () => {
+  const spin = async () => {
     if (spinning || spinsLoading || spinsAvailable <= 0 || !discRef.current)
       return;
-    const index = Math.floor(Math.random() * segments.length);
+    const disc = discRef.current;
+
+    setResult(null);
+    setSpinError(null);
+    setSpinning(true);
+
+    // The server owns the weighted draw and spends the earned spin, so the
+    // client cannot force ETB 50 or the jackpot.
+    const { data, error } = await supabase.rpc("spin_lucky_wheel");
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.luckyWheelSpins(userId ?? "anon"),
+    });
+
+    if (error) {
+      setSpinning(false);
+      setSpinError(
+        /could not find the function|does not exist|unexpected argument|unknown function/i.test(
+          error.message,
+        )
+          ? "Lucky wheel needs the latest update. Run LUCKY_WHEEL.sql in Supabase."
+          : error.message || "Your spin could not be saved. Please try again.",
+      );
+      return;
+    }
+
+    const prize = String(
+      (data as { prize_label?: string } | null)?.prize_label ?? "Try again",
+    );
+    const index = Math.max(
+      0,
+      segments.findIndex((s) => s.label === prize),
+    );
 
     // Each slice is centred on its angle, so rotating by -index * slice puts
     // it under the pointer. Add full turns + the shortest forward delta so
@@ -102,13 +136,9 @@ function Page() {
     if (delta < 0) delta += 360;
     const target = rotation + 360 * 6 + delta;
 
-    setResult(null);
-    setSpinError(null);
-    setSpinning(true);
-
     // Physical-style spin: fast start, long deceleration, then a small
     // overshoot/bounce as the winning slice settles under the pointer.
-    const animation = discRef.current.animate(
+    const animation = disc.animate(
       [
         {
           transform: `rotate(${rotation}deg)`,
@@ -139,27 +169,8 @@ function Page() {
       setRotation(target);
       animation.cancel();
       setSpinning(false);
-      const prize = segments[index]?.label ?? "Try again";
-      const spinsKey = queryKeys.luckyWheelSpins(userId ?? "anon");
-
-      // Spend the earned spin on the server first. It derives the amount from
-      // the label and rejects the request when no spin is available.
-      void (async () => {
-        const { error } = await supabase.rpc("record_lucky_wheel_win", {
-          p_prize_label: prize,
-        });
-        await queryClient.invalidateQueries({ queryKey: spinsKey });
-
-        if (error) {
-          setSpinError(
-            error.message || "Your spin could not be saved. Please try again.",
-          );
-          return;
-        }
-
-        setResult(prize);
-        await loadWinners();
-      })();
+      setResult(segments[index]?.label ?? prize);
+      void loadWinners();
     };
   };
 
@@ -189,8 +200,8 @@ function Page() {
             Try your luck
           </h2>
           <p className="relative mt-1 text-sm text-primary-foreground/75">
-            Spin for {etb(50)} or {etb(100)}. Rewards are credited after
-            verification.
+            Spin for {etb(10)} to {etb(50)}. Most spins land on {etb(10)} or Try
+            again. Rewards are credited after verification.
           </p>
         </section>
 
@@ -202,8 +213,9 @@ function Page() {
           <p className="text-sm leading-6 text-muted-foreground">
             Spins are earned, never given for free: one for your first approved
             package, plus one for each invited friend who activates a package.
-            The {etb(2000)} prize is unlocked for locked-package and upper-tier
-            VIP members.
+            VIP2+ members get better odds at {etb(20)}-{etb(50)}. The rare{" "}
+            {etb(2000)} prize stays reserved for locked-package and VIP5+
+            members.
           </p>
         </section>
 

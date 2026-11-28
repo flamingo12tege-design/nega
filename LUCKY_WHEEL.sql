@@ -1,13 +1,15 @@
 -- Lucky wheel: record spins and show recent winners
 -- Run this in the Supabase SQL Editor. Safe to re-run.
 --
--- Prize amounts are derived from the label on the server. The client can no
--- longer inflate a public winner by sending a larger p_amount. Spins are
--- earned, never given for free: one for the caller's first approved package,
--- plus one for each invited friend with an approved package.
+-- The server picks the prize with weighted odds, so the client cannot choose
+-- ETB 50 every time. Spins are earned, never given for free: one for the
+-- caller's first approved package, plus one for each invited friend with an
+-- approved package.
 --
--- Standard prizes: ETB 50, ETB 100, Try again.
--- The ETB 2,000 prize is reserved for locked-package / upper-tier VIP members.
+-- Wheel prizes: ETB 10 / 20 / 30 / 40 / 50 / Try again.
+-- Most spins land on ETB 10 or Try again. VIP2+ members get better odds at the
+-- higher amounts. The rare ETB 2,000 prize stays reserved for locked-package
+-- or upper-tier VIP members.
 
 reset role;
 
@@ -35,14 +37,21 @@ create policy "Wheel winners are public"
   using (true);
 
 -- VIP tier that unlocks the ETB 2,000 prize. Locked packages always unlock it.
+-- VIP2+ get the better odds at ETB 20-50. Jackpot chance is a percentage.
 insert into public.platform_settings (key, value) values
-  ('lucky_wheel_jackpot_min_vip_tier', '5')
+  ('lucky_wheel_jackpot_min_vip_tier', '5'),
+  ('lucky_wheel_boost_min_vip_tier', '2'),
+  ('lucky_wheel_jackpot_chance_percent', '1')
 on conflict (key) do nothing;
 
 -- Repair historic labels and spoofed amounts before adding the guard.
 -- Unknown labels become "Try again" so they satisfy the strict constraint.
 update public.lucky_wheel_spins
 set prize_label = case btrim(prize_label)
+      when 'ETB 10' then 'ETB 10'
+      when 'ETB 20' then 'ETB 20'
+      when 'ETB 30' then 'ETB 30'
+      when 'ETB 40' then 'ETB 40'
       when 'ETB 50' then 'ETB 50'
       when 'ETB 100' then 'ETB 100'
       when 'ETB 200' then 'ETB 200'
@@ -54,6 +63,10 @@ set prize_label = case btrim(prize_label)
       else 'Try again'
     end,
     amount = case btrim(prize_label)
+      when 'ETB 10' then 10
+      when 'ETB 20' then 20
+      when 'ETB 30' then 30
+      when 'ETB 40' then 40
       when 'ETB 50' then 50
       when 'ETB 100' then 100
       when 'ETB 200' then 200
@@ -73,10 +86,15 @@ alter table public.lucky_wheel_spins
     (btrim(prize_label) = 'Try again' and amount = 0)
     or (
       btrim(prize_label) in (
-        'ETB 50', 'ETB 100', 'ETB 200', 'ETB 500',
-        'ETB 2,000', 'ETB 80', 'ETB 150', 'ETB 300'
+        'ETB 10', 'ETB 20', 'ETB 30', 'ETB 40', 'ETB 50',
+        'ETB 100', 'ETB 200', 'ETB 500', 'ETB 2,000',
+        'ETB 80', 'ETB 150', 'ETB 300'
       )
       and amount = case btrim(prize_label)
+        when 'ETB 10' then 10
+        when 'ETB 20' then 20
+        when 'ETB 30' then 30
+        when 'ETB 40' then 40
         when 'ETB 50' then 50
         when 'ETB 100' then 100
         when 'ETB 200' then 200
@@ -168,9 +186,12 @@ $wheel$;
 
 -- Drop the old version that trusted a client-supplied amount.
 drop function if exists public.record_lucky_wheel_win(text, numeric);
+drop function if exists public.spin_lucky_wheel();
 
-create or replace function public.record_lucky_wheel_win(p_prize_label text)
-returns uuid
+-- The server picks the prize with weighted odds, so the client cannot choose
+-- ETB 50 every time.
+create or replace function public.spin_lucky_wheel()
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
@@ -178,47 +199,98 @@ as $wheel$
 declare
   v_user_id uuid := auth.uid();
   v_profile_id uuid;
-  v_label text := btrim(coalesce(p_prize_label, ''));
-  v_amount numeric;
+  v_vip_tier integer := coalesce((
+    select max(pk.tier)
+    from public.purchases pu
+    join public.packages pk on pk.id = pu.package_id
+    where pu.user_id = v_user_id
+      and lower(coalesce(pu.status, '')) in ('approved', 'completed')
+  ), 0);
+  v_boost_tier integer := coalesce((
+    select case when value ~ '^[0-9]+$' then value::integer end
+    from public.platform_settings
+    where key = 'lucky_wheel_boost_min_vip_tier'
+  ), 2);
+  v_jackpot_chance numeric := greatest(0, least(100, coalesce((
+    select case when value ~ '^[0-9]+(\.[0-9]+)?$' then value::numeric end
+    from public.platform_settings
+    where key = 'lucky_wheel_jackpot_chance_percent'
+  ), 1)));
+  v_labels constant text[] := array[
+    'Try again', 'ETB 10', 'ETB 20', 'ETB 30', 'ETB 40', 'ETB 50'
+  ];
+  v_regular_weights constant integer[] := array[42, 38, 10, 5, 3, 2];
+  v_vip_weights constant integer[] := array[30, 30, 18, 10, 7, 5];
+  v_weights integer[];
+  v_draw numeric;
+  v_cumulative numeric;
+  v_index integer;
+  v_label text := 'Try again';
+  v_amount numeric := 0;
   v_id uuid;
 begin
   if v_user_id is null then
     raise exception 'Authentication required';
   end if;
 
-  -- Serialize spins for this member so two simultaneous requests cannot
-  -- spend the same earned spin.
   perform pg_advisory_xact_lock(hashtext(v_user_id::text));
   select id into v_profile_id from public.profiles where id = v_user_id for update;
-
-  -- Only the current wheel prizes may be minted. Older labels remain valid
-  -- in the constraint so historical winners keep their original amounts.
-  v_amount := case v_label
-    when 'ETB 50' then 50
-    when 'ETB 100' then 100
-    when 'ETB 2,000' then 2000
-    when 'Try again' then 0
-    else null
-  end;
-
-  if v_amount is null then
-    raise exception 'Invalid prize';
-  end if;
-
-  if v_label = 'ETB 2,000' and not public.lucky_wheel_jackpot_unlocked() then
-    raise exception 'The ETB 2,000 prize is reserved for locked-package and upper-tier VIP members.';
-  end if;
 
   if public.lucky_wheel_spins_available() <= 0 then
     raise exception 'No spins available. Activate your package or invite a friend who activates theirs to earn one.';
   end if;
 
+  v_weights := case
+    when v_vip_tier >= v_boost_tier then v_vip_weights
+    else v_regular_weights
+  end;
+  v_draw := random() * 100;
+  v_cumulative := 0;
+  for v_index in 1 .. array_length(v_labels, 1) loop
+    v_cumulative := v_cumulative + v_weights[v_index];
+    if v_draw < v_cumulative then
+      v_label := v_labels[v_index];
+      exit;
+    end if;
+  end loop;
+
+  -- Rare jackpot: locked packages and VIP5+ only, default 1% chance.
+  if public.lucky_wheel_jackpot_unlocked()
+     and random() * 100 < v_jackpot_chance then
+    v_label := 'ETB 2,000';
+  end if;
+
+  v_amount := case v_label
+    when 'ETB 10' then 10
+    when 'ETB 20' then 20
+    when 'ETB 30' then 30
+    when 'ETB 40' then 40
+    when 'ETB 50' then 50
+    when 'ETB 2,000' then 2000
+    else 0
+  end;
+
   insert into public.lucky_wheel_spins (user_id, prize_label, amount)
   values (v_user_id, v_label, v_amount)
   returning id into v_id;
 
-  return v_id;
+  return jsonb_build_object(
+    'id', v_id,
+    'prize_label', v_label,
+    'amount', v_amount
+  );
 end;
+$wheel$;
+
+-- Older clients keep working, but the label they submit is ignored so it can
+-- no longer force a prize.
+create or replace function public.record_lucky_wheel_win(p_prize_label text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $wheel$
+  select (public.spin_lucky_wheel() ->> 'id')::uuid;
 $wheel$;
 
 -- Public list of recent real wins (excludes "Try again").
@@ -252,10 +324,12 @@ as $wheel$
   left join public.profiles p on p.id = w.user_id;
 $wheel$;
 
+revoke all on function public.spin_lucky_wheel() from public;
 revoke all on function public.record_lucky_wheel_win(text) from public;
 revoke all on function public.lucky_wheel_spins_available() from public;
 revoke all on function public.lucky_wheel_jackpot_unlocked() from public;
 revoke all on function public.get_lucky_wheel_winners() from public;
+grant execute on function public.spin_lucky_wheel() to authenticated;
 grant execute on function public.record_lucky_wheel_win(text) to authenticated;
 grant execute on function public.lucky_wheel_spins_available() to authenticated;
 grant execute on function public.lucky_wheel_jackpot_unlocked() to authenticated;

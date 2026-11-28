@@ -1,6 +1,6 @@
 // Bump this when deployments change hashed assets so old entries are purged.
 const CACHE_PREFIX = "cas-shell-";
-const CACHE_NAME = "cas-shell-v8";
+const CACHE_NAME = "cas-shell-v9";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
