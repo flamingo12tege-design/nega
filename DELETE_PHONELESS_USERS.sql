@@ -6,8 +6,11 @@
 --
 -- This deletes the auth user and all related app rows:
 --   wallet_ledger, purchases, gift_code_redemptions, lucky_wheel_spins,
---   deposit_verification_logs, withdrawal_security, profiles, and uploaded
---   recharge-proof objects in the recharge-proofs bucket.
+--   deposit_verification_logs, withdrawal_security, and profiles.
+--
+-- Supabase does not allow direct DELETE from storage.objects. Recharge proof
+-- files are therefore left in storage (they become orphaned and are not linked
+-- to any account). Delete those separately through the Storage API if needed.
 --
 -- An audit summary is written to public.admin_audit_logs before deletion.
 --
@@ -97,16 +100,9 @@ begin
     );
   end if;
 
-  -- Remove uploaded proof files first; the ledger paths are about to be deleted.
-  delete from storage.objects
-  where bucket_id = 'recharge-proofs'
-    and name in (
-      select distinct proof_url
-      from public.wallet_ledger
-      where user_id = any (v_target)
-        and proof_url is not null
-    );
-  get diagnostics v_deleted_proofs = row_count;
+  -- Direct deletes from storage.objects are blocked by Supabase.
+  -- Proof files are left in storage; only their ledger links are removed.
+  v_deleted_proofs := 0;
 
   delete from public.wallet_ledger where user_id = any (v_target);
   get diagnostics v_deleted_ledger = row_count;
@@ -148,7 +144,7 @@ begin
     'verification_logs', v_deleted_logs,
     'withdrawal_security_rows', v_deleted_security,
     'profiles', v_count,
-    'proof_files', v_deleted_proofs
+    'proof_files_skipped', v_deleted_proofs
   );
 end;
 $delete$;
