@@ -318,7 +318,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [depositStats, setDepositStats] = useState({ users: 0, amount: 0 });
   const [activePackages, setActivePackages] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
-  const [depositHistory, setDepositHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; created_at: string; member_id: string | null }>>([]);
+  const [depositHistory, setDepositHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; transaction_ref: string | null; proof_url: string | null; approval_source: "auto" | "admin" | "unknown" | "none"; created_at: string; member_id: string | null }>>([]);
   const [withdrawalHistory, setWithdrawalHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; created_at: string; member_id: string | null }>>([]);
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
@@ -449,21 +449,26 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   };
 
   const loadLedgerHistory = async () => {
-    const [deposits, withdrawals] = await Promise.all([
+    const [deposits, withdrawals, approvals] = await Promise.all([
       supabase
         .from("wallet_ledger")
-        .select("id,user_id,amount,status,description,created_at")
+        .select("id,user_id,amount,status,description,transaction_ref,proof_url,created_at")
         .in("type", ["deposit", "recharge"])
         .in("status", ["completed", "rejected"])
         .order("created_at", { ascending: false })
         .limit(100),
       supabase
         .from("wallet_ledger")
-        .select("id,user_id,amount,status,description,created_at")
+        .select("id,user_id,amount,status,description,transaction_ref,proof_url,created_at")
         .eq("type", "withdrawal")
         .in("status", ["completed", "rejected"])
         .order("created_at", { ascending: false })
         .limit(100),
+      supabase
+        .from("admin_audit_logs")
+        .select("target_id")
+        .eq("action", "deposit.approved")
+        .limit(1000),
     ]);
 
     const rows = [...(deposits.data ?? []), ...(withdrawals.data ?? [])];
@@ -472,20 +477,36 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       ? await supabase.from("profiles").select("id,member_id").in("id", ids)
       : { data: [] };
     const memberMap = new Map((profiles ?? []).map((p) => [p.id, p.member_id]));
+    const adminApprovedIds = new Set(
+      (approvals.data ?? []).map((row) => String(row.target_id ?? "")).filter(Boolean),
+    );
 
-    const mapRows = (data: typeof rows) =>
+    const approvalSource = (
+      row: (typeof rows)[number],
+      isDeposit: boolean,
+    ): "auto" | "admin" | "unknown" | "none" => {
+      if (!isDeposit || row.status !== "completed") return "none";
+      if (adminApprovedIds.has(row.id)) return "admin";
+      if (row.transaction_ref) return "auto";
+      return "admin";
+    };
+
+    const mapRows = (data: typeof rows, isDeposit: boolean) =>
       data.map((row) => ({
         id: row.id,
         user_id: row.user_id,
         amount: Number(row.amount),
         status: row.status,
         description: row.description ?? null,
+        transaction_ref: row.transaction_ref ?? null,
+        proof_url: row.proof_url ?? null,
+        approval_source: approvalSource(row, isDeposit),
         created_at: row.created_at,
         member_id: memberMap.get(row.user_id) ?? null,
       }));
 
-    if (!deposits.error) setDepositHistory(mapRows(deposits.data ?? []));
-    if (!withdrawals.error) setWithdrawalHistory(mapRows(withdrawals.data ?? []));
+    if (!deposits.error) setDepositHistory(mapRows(deposits.data ?? [], true));
+    if (!withdrawals.error) setWithdrawalHistory(mapRows(withdrawals.data ?? [], false));
   };
 
   const loadVerificationLogs = async () => {
@@ -1251,7 +1272,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">Deposit history</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Completed and rejected deposits, separate from withdrawals.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Completed and rejected deposits with reference, method and approval source — separate from withdrawals.</p>
                   </div>
                   <button type="button" onClick={() => void loadLedgerHistory()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
                 </div>
@@ -1266,8 +1287,18 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${row.status === "completed" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"}`}>
                             {row.status === "completed" ? "Completed" : "Rejected"}
                           </span>
+                          {row.approval_source !== "none" && (
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${row.approval_source === "auto" ? "bg-success/15 text-success" : "bg-tint-violet text-primary"}`}>
+                              {row.approval_source === "auto" ? "Auto-approved" : row.approval_source === "admin" ? "Admin approved" : "Source unknown"}
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {row.transaction_ref ? `Ref ${row.transaction_ref}` : "No transaction reference"}
+                          {row.description ? ` · ${row.description}` : ""}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {fmtDate(row.created_at)}</p>
+                        {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) setProofPreview({ id: row.id, url: data.signedUrl }); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
                       </div>
                     </div>
                   ))}
