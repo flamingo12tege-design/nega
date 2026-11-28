@@ -180,9 +180,9 @@ export const vipPlans = appliances.slice(0, 2).map((a) => ({
 }));
 
 export const depositAccount = {
-  name: "Tegene",
+  name: "Ashenafi Melese",
   bank: "CBE",
-  account: "1000604178669",
+  account: "1000574816118",
 } as const;
 
 export const heroSlides = [
