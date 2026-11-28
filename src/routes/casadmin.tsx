@@ -318,7 +318,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [depositStats, setDepositStats] = useState({ users: 0, amount: 0 });
   const [activePackages, setActivePackages] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState<Array<{ id: string; user_id: string; amount: number; description: string | null; created_at: string }>>([]);
-  const [depositHistory, setDepositHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; transaction_ref: string | null; proof_url: string | null; adminApproved: boolean; created_at: string; member_id: string | null }>>([]);
+  const [depositHistory, setDepositHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; transaction_ref: string | null; proof_url: string | null; approvalSource: "api" | "admin" | null; created_at: string; member_id: string | null }>>([]);
   const [withdrawalHistory, setWithdrawalHistory] = useState<Array<{ id: string; user_id: string; amount: number; status: string; description: string | null; created_at: string; member_id: string | null }>>([]);
   const [verificationLogs, setVerificationLogs] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; reason: string | null; outcome: string; created_at: string }>>([]);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; admin_email: string | null; action: string; target_type: string | null; target_id: string | null; member_id: string | null; ip_address: string | null; user_agent: string | null; metadata: Record<string, unknown> | null; created_at: string }>>([]);
@@ -452,14 +452,14 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
     const [deposits, withdrawals, approvals] = await Promise.all([
       supabase
         .from("wallet_ledger")
-        .select("id,user_id,amount,status,description,transaction_ref,proof_url,created_at")
+        .select("id,user_id,amount,status,description,transaction_ref,proof_url,approval_source,created_at")
         .in("type", ["deposit", "recharge"])
         .in("status", ["completed", "rejected"])
         .order("created_at", { ascending: false })
         .limit(100),
       supabase
         .from("wallet_ledger")
-        .select("id,user_id,amount,status,description,transaction_ref,proof_url,created_at")
+        .select("id,user_id,amount,status,description,transaction_ref,proof_url,approval_source,created_at")
         .eq("type", "withdrawal")
         .in("status", ["completed", "rejected"])
         .order("created_at", { ascending: false })
@@ -490,7 +490,12 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
         description: row.description ?? null,
         transaction_ref: row.transaction_ref ?? null,
         proof_url: row.proof_url ?? null,
-        adminApproved: isDeposit && row.status === "completed" && adminApprovedIds.has(row.id),
+        approvalSource: (() => {
+          if (!isDeposit || row.status !== "completed") return null;
+          const source = String(row.approval_source ?? "").toLowerCase();
+          if (source === "api" || source === "admin") return source;
+          return adminApprovedIds.has(row.id) ? "admin" : null;
+        })() as "api" | "admin" | null,
         created_at: row.created_at,
         member_id: memberMap.get(row.user_id) ?? null,
       }));
@@ -1206,7 +1211,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">Pending deposits</p>
-                    <p className="mt-1 text-xs text-muted-foreground">All deposits stay pending until an admin approves them.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Unverified deposits stay pending until an admin approves them.</p>
                   </div>
                   <button type="button" onClick={() => { void loadPendingRecharges(); void loadLedgerHistory(); }} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
                 </div>
@@ -1262,7 +1267,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">Deposit history</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Completed and rejected deposits with reference, method and proof — separate from withdrawals.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Completed and rejected deposits with reference, method and approval source — separate from withdrawals.</p>
                   </div>
                   <button type="button" onClick={() => void loadLedgerHistory()} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold">Refresh</button>
                 </div>
@@ -1277,7 +1282,12 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${row.status === "completed" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"}`}>
                             {row.status === "completed" ? "Completed" : "Rejected"}
                           </span>
-                          {row.adminApproved && (
+                          {row.approvalSource === "api" && (
+                            <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
+                              API approved
+                            </span>
+                          )}
+                          {row.approvalSource === "admin" && (
                             <span className="rounded-full bg-tint-violet px-2 py-0.5 text-[11px] font-bold text-primary">
                               Admin approved
                             </span>

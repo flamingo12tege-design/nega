@@ -1,19 +1,21 @@
--- Deposit rules: admin approval only, minimum enforced by the database
+-- Deposit rules: CBE API auto-approval with database-enforced minimum
 -- Run this in the Supabase SQL Editor. Safe to re-run.
 --
--- Fixes: a 700 birre recharge being created/approved even though the published
--- minimum deposit is ETB 1,300. The page check is not enough on its own:
--- PostgREST clients can insert directly and the old member-owned approval RPC
--- could complete any pending row with a reference. This file:
---   1. exposes the minimum from platform_settings,
---   2. blocks sub-minimum recharge inserts with RLS,
---   3. blocks sub-minimum recharge inserts/updates with a trigger,
---   4. disables automatic approval entirely,
---   5. keeps admin-only approve/reject working, with a minimum check.
+-- The member flow verifies the reference server-side with CBE_CHECK_API_KEY,
+-- then calls auto_approve_recharge. This file allows that path again, but adds
+-- guards that were missing before:
+--   1. minimum deposit read from platform_settings (default ETB 1,300),
+--   2. no sub-minimum recharge insert/update (RLS + trigger),
+--   3. no approval of a sub-minimum or duplicate-reference row,
+--   4. approval_source recorded so admin history can say "API approved" vs
+--      "Admin approved" without guessing from old rows.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
 reset role;
+
+alter table public.wallet_ledger
+  add column if not exists approval_source text;
 
 -- 1) Single source of truth for the minimum, editable in platform_settings.
 create or replace function public.minimum_deposit_amount()
@@ -48,8 +50,7 @@ with check (
   and amount >= public.minimum_deposit_amount()
 );
 
--- 3) Backstop for service-role/admin inserts and amount edits: no recharge row
---    may be created or changed below the minimum.
+-- 3) Backstop for service-role/admin inserts and amount edits.
 create or replace function public.enforce_minimum_deposit()
 returns trigger
 language plpgsql
@@ -72,23 +73,69 @@ before insert or update of amount, type
 on public.wallet_ledger
 for each row execute function public.enforce_minimum_deposit();
 
--- 4) Deprecated auto-approval stub. Kept only so an old client that still calls
---    it gets a clear error instead of silently completing a deposit. It never
---    updates wallet_ledger or profiles.
+-- 4) API auto-approval. Only the row owner can call it, only for a pending
+--    recharge with a reference and at or above the minimum, and only once per
+--    reference. The server verifies the reference with the CBE API before
+--    calling this RPC.
 create or replace function public.auto_approve_recharge(p_ledger_id uuid)
 returns numeric
 language plpgsql
 security definer
 set search_path = public
 as $dep$
+declare
+  v_amount numeric;
+  v_user_id uuid;
+  v_ref text;
+  v_min numeric;
 begin
-  raise exception 'Automatic deposit approval is disabled. An admin must approve this deposit.';
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  v_min := public.minimum_deposit_amount();
+
+  for v_user_id, v_amount, v_ref in
+    select user_id, amount, transaction_ref
+    from public.wallet_ledger
+    where id = p_ledger_id
+      and user_id = auth.uid()
+      and type = 'recharge'
+      and status = 'pending'
+      and amount >= v_min
+      and transaction_ref is not null
+      and btrim(transaction_ref) <> ''
+    for update
+  loop
+    if exists (
+      select 1
+      from public.wallet_ledger l
+      where l.type = 'recharge'
+        and l.id <> p_ledger_id
+        and lower(coalesce(l.status, '')) <> 'rejected'
+        and upper(coalesce(l.transaction_ref, '')) = upper(v_ref)
+    ) then
+      raise exception 'This transaction reference was already used';
+    end if;
+
+    update public.wallet_ledger
+    set status = 'completed',
+        approval_source = 'api'
+    where id = p_ledger_id;
+
+    update public.profiles
+    set wallet_balance = coalesce(wallet_balance, 0) + v_amount
+    where id = v_user_id;
+
+    return v_amount;
+  end loop;
+
+  raise exception 'Recharge already processed, below the ETB % minimum, or missing a reference', v_min;
 end;
 $dep$;
 
--- No browser role may execute the deprecated auto-approval path.
 revoke all on function public.auto_approve_recharge(uuid) from public;
-revoke all on function public.auto_approve_recharge(uuid) from authenticated;
+grant execute on function public.auto_approve_recharge(uuid) to authenticated;
 
 -- 5) Admin approval. Only an admin can complete a pending recharge and credit
 --    the member's wallet, and only if it meets the published minimum.
@@ -119,7 +166,8 @@ begin
     end if;
 
     update public.wallet_ledger
-    set status = 'completed'
+    set status = 'completed',
+        approval_source = 'admin'
     where id = p_ledger_id;
 
     update public.profiles

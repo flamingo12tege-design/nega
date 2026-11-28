@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
 import { etb } from "@/lib/format";
 import { ocrImage } from "@/lib/ocr-server";
+import { verifyCbePayment } from "@/lib/cbe-server";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
 import {
@@ -166,8 +167,8 @@ function Page() {
     }
 
     // If the member uploaded a screenshot but did not type a reference, scan
-    // it now so the admin has the reference even if background OCR was still
-    // running when they pressed submit.
+    // it now so instant approval still works even if the background OCR was
+    // still running when they pressed submit.
     let reference = txn.trim();
     if (!reference && proofFile) {
       setOcrState("scanning");
@@ -185,7 +186,8 @@ function Page() {
       return;
     }
 
-    // Upload the screenshot first so every deposit row has its proof attached.
+    // Upload the screenshot first; no deposit row exists yet, so a rejected
+    // verification never leaves a pending deposit behind.
     let proofUrl: string | null = null;
     if (proofFile) {
       const safeName = proofFile.name.replace(/[^a-zA-Z0-9_.-]/g, "-");
@@ -205,27 +207,129 @@ function Page() {
       proofUrl = path;
     }
 
-    const { error } = await supabase.from("wallet_ledger").insert({
-      user_id: userId,
-      amount,
-      type: "recharge",
-      status: "pending",
-      transaction_ref: reference || null,
-      proof_url: proofUrl,
-      description: `CBE recharge via ${method}`,
-    });
+    // Verify the CBE payment before creating a deposit. A definitive rejection
+    // stops here; only an unreachable/transient verifier goes to manual review.
+    let verification: "verified" | "rejected" | "unverifiable" = "unverifiable";
+    let verifyMessage = "";
+
+    if (reference) {
+      try {
+        const result = await verifyCbePayment({
+          data: {
+            transaction_number: reference,
+            account_number: depositAccount?.account ?? "",
+          },
+        });
+        verifyMessage = result.message ?? "";
+        verification = result.ok
+          ? "verified"
+          : result.transient
+            ? "unverifiable"
+            : "rejected";
+      } catch {
+        verification = "unverifiable";
+        verifyMessage = "Could not reach the payment verification service";
+      }
+    }
+
+    const logFailure = async (outcome: "rejected" | "manual_review") => {
+      try {
+        await supabase.rpc("log_deposit_verification_failure", {
+          p_amount: amount,
+          p_transaction_ref: reference || null,
+          p_reason:
+            verifyMessage ||
+            (outcome === "rejected"
+              ? "Payment verification failed"
+              : "Verifier unavailable"),
+          p_proof_url: proofUrl,
+          p_outcome: outcome,
+        });
+      } catch {
+        // Logging is best-effort; never block or confuse the member.
+      }
+    };
+
+    if (verification === "rejected") {
+      await logFailure("rejected");
+      toast.error("Payment could not be verified", {
+        description:
+          verifyMessage ||
+          "Check the transaction number and receiving account, then try again.",
+      });
+      return;
+    }
+
+    const { data: insertData, error } = await supabase
+      .from("wallet_ledger")
+      .insert({
+        user_id: userId,
+        amount,
+        type: "recharge",
+        status: "pending",
+        transaction_ref: reference || null,
+        proof_url: proofUrl,
+        description: `CBE recharge via ${method}`,
+      })
+      .select("id");
 
     if (error) {
       toast.error("Recharge submission failed", { description: error.message });
       return;
     }
 
-    toast.success("Proof submitted", {
-      description: "An admin will review it before your wallet is credited.",
-    });
+    const ledgerId = insertData?.[0]?.id ?? null;
+
+    if (verification === "verified" && ledgerId) {
+      const { error: approveError } = await supabase.rpc(
+        "auto_approve_recharge",
+        { p_ledger_id: ledgerId },
+      );
+      if (!approveError) {
+        toast.success("Payment verified — recharge auto-approved");
+        navigate({
+          to: "/recharge/success",
+          search: {
+            amount,
+            method,
+            proof: Boolean(proofFile),
+            txn: reference,
+            approved: true,
+          },
+        });
+        return;
+      }
+      const detail = /could not find the function|does not exist/i.test(
+        approveError.message,
+      )
+        ? "Run AUTO_APPROVE_RECHARGE.sql in Supabase to enable instant approval."
+        : approveError.message;
+      toast("Payment verified, awaiting admin approval", {
+        description: detail,
+      });
+    } else if (verification === "unverifiable" && reference) {
+      await logFailure("manual_review");
+      toast("Sent for manual review", {
+        description:
+          "We couldn't verify the payment automatically. An admin will check your proof.",
+      });
+    } else if (!reference) {
+      await logFailure("manual_review");
+      toast("Sent for manual review", {
+        description:
+          "We couldn't read the transaction number from your screenshot. Type it manually next time for instant approval.",
+      });
+    }
+
     navigate({
       to: "/recharge/success",
-      search: { amount, method, proof: Boolean(proofFile), txn: reference },
+      search: {
+        amount,
+        method,
+        proof: Boolean(proofFile),
+        txn: reference,
+        approved: false,
+      },
     });
   };
 
@@ -374,10 +478,10 @@ function Page() {
           disabled={submitting}
           className="press mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground"
         >
-          {submitting ? "Submitting…" : "Submit proof"}
+          {submitting ? "Verifying payment…" : "Submit proof"}
         </button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          An admin reviews every deposit before your wallet is credited.
+          Your wallet is credited after the payment is verified.
         </p>
       </div>
     </div>
