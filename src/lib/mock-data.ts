@@ -30,10 +30,10 @@ export const rewardRules = {
   /** ETB 50 welcome credit, payable once per new member. */
   registrationBonus: 50,
   minimumDeposit: 1300,
-  minimumWithdrawal: 300,
+  minimumWithdrawal: 200,
   /** Fixed payout choices only — members cannot enter an amount in between. */
   withdrawalAmounts: [
-    300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000,
+    200, 300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000,
   ] as readonly number[],
   withdrawalFeePercent: 10,
   /** Recycle/payout window for each package: 45 daily claims. */

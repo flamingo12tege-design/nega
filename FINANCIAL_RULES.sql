@@ -22,9 +22,9 @@ insert into public.platform_settings (key, value) values
   -- Welcome / deposits / withdrawals.
   ('registration_bonus_amount', '50'),
   ('minimum_deposit_amount', '1300'),
-  ('minimum_withdrawal_amount', '300'),
+  ('minimum_withdrawal_amount', '200'),
   ('maximum_withdrawal_amount', '30000'),
-  ('withdrawal_fixed_amounts', '300,500,1000,1500,3000,5000,10000,20000,30000'),
+  ('withdrawal_fixed_amounts', '200,300,500,1000,1500,3000,5000,10000,20000,30000'),
   ('withdrawal_amount_whole_etb', 'true'),
   ('withdrawal_fee_percent', '10'),
   ('withdrawal_frequency', 'Once per day'),

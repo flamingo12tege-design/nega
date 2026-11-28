@@ -7,7 +7,7 @@
 -- deposits/recharges are excluded. Pending AND completed withdrawals are
 -- reserved so an approved payout cannot be requested a second time.
 -- Withdrawals use fixed whole-ETB amounts only:
--- 300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000.
+-- 200, 300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000.
 -- No in-between/custom amounts are accepted. A 10% whole-birr fee is retained
 -- by CAS; the member receives net. No withdrawals on Sunday, 3:00 AM -
 -- 11:00 PM EAT only, once/day.
@@ -26,14 +26,14 @@ create table if not exists public.platform_settings (
 -- before this rule change. Other settings keep any admin edits.
 insert into public.platform_settings (key, value)
 values
-  ('minimum_withdrawal_amount', '300'),
+  ('minimum_withdrawal_amount', '200'),
   ('maximum_withdrawal_amount', '30000')
 on conflict (key) do update
   set value = excluded.value, updated_at = now();
 
 insert into public.platform_settings (key, value)
 values
-  ('withdrawal_fixed_amounts', '300,500,1000,1500,3000,5000,10000,20000,30000'),
+  ('withdrawal_fixed_amounts', '200,300,500,1000,1500,3000,5000,10000,20000,30000'),
   ('withdrawal_fee_percent', '10')
 on conflict (key) do nothing;
 
@@ -85,7 +85,7 @@ as $wd$
     (select total from earned_income),
     (select total from outstanding_withdrawals),
     greatest(0, (select total from earned_income) - (select total from outstanding_withdrawals)),
-    coalesce((select nullif(value, '')::numeric from public.platform_settings where key = 'minimum_withdrawal_amount'), 300);
+    coalesce((select nullif(value, '')::numeric from public.platform_settings where key = 'minimum_withdrawal_amount'), 200);
 $wd$;
 
 revoke all on function public.withdraw_eligibility() from public;
@@ -122,7 +122,7 @@ declare
     select nullif(value, '')::numeric
     from public.platform_settings
     where key = 'minimum_withdrawal_amount'
-  ), 300);
+  ), 200);
   v_fee_percent numeric := coalesce((
     select nullif(value, '')::numeric
     from public.platform_settings
@@ -150,8 +150,8 @@ begin
   if v_amount <> floor(v_amount) then
     raise exception 'Withdrawal amount must be a whole ETB amount';
   end if;
-  if v_amount not in (300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000) then
-    raise exception 'Choose one of the fixed withdrawal amounts: 300, 500, 1000, 1500, 3000, 5000, 10000, 20000 or 30000';
+  if v_amount not in (200, 300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000) then
+    raise exception 'Choose one of the fixed withdrawal amounts: 200, 300, 500, 1000, 1500, 3000, 5000, 10000, 20000 or 30000';
   end if;
 
   -- Withdrawal schedule: Monday-Saturday, 3:00 AM - 11:00 PM (EAT).
