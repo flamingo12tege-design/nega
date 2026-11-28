@@ -67,12 +67,12 @@ export async function verifyCbePaymentRequest({
       message: "Add a transaction number before verifying",
     };
   }
-  if (!account) {
+  if (!/^\d{13}$/.test(account)) {
     return {
       ok: false,
       approved: false,
       transient: true,
-      message: "The deposit account is not configured",
+      message: "The receiving CBE account must be a 13-digit account",
     };
   }
 
