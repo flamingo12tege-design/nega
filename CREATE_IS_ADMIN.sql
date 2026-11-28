@@ -21,6 +21,7 @@ as $admin$
 $admin$;
 
 revoke all on function public.is_admin() from public;
-grant execute on function public.is_admin() to anon, authenticated;
+revoke all on function public.is_admin() from anon;
+grant execute on function public.is_admin() to authenticated;
 
 notify pgrst, 'reload schema';

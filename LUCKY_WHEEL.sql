@@ -302,7 +302,10 @@ as $wheel$
     jsonb_agg(
       jsonb_build_object(
         'id', w.id,
-        'member_id', p.member_id,
+        'member_id', case
+          when coalesce(p.member_id, '') = '' then 'CAS member'
+          else 'CAS-' || right(p.member_id, 4)
+        end,
         'prize', w.prize_label,
         'amount', w.amount,
         'created_at', w.created_at

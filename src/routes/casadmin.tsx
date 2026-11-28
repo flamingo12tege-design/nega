@@ -5,7 +5,7 @@ import {
   Users, ShoppingBag, Gift, ListChecks, Newspaper, ReceiptText, BarChart3, TicketPercent,
   Plus, Trash2, Check, X, Clock3, Wallet, TrendingUp, Search, Lock, Unlock,
   Ban, RotateCcw, ArrowDownRight, ArrowUpRight, ArrowLeft, LockKeyhole, Eye, EyeOff,
-  ScrollText, ShieldCheck, Globe, Monitor, KeyRound, ArrowRight, LayoutGrid,
+  ScrollText, ShieldCheck, Globe, Monitor, KeyRound, ArrowRight, LayoutGrid, Loader2,
 } from "lucide-react";
 import { dailyCommission } from "@/lib/referral";
 import { etb, fmtDate, fmtDateTime } from "@/lib/format";
@@ -141,7 +141,6 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
       { id: data.user.id, email },
     );
 
-    sessionStorage.setItem("cas_admin_authenticated", "true");
     onSuccess(email);
   };
 
@@ -279,19 +278,54 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
 
 function AdminRoute() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [adminEmail, setAdminEmail] = useState("");
 
-  // Read the flag after mount so SSR HTML and the first client render agree.
+  // The console is gated by the live Supabase session and role, never by a
+  // browser-only flag that anyone can set in devtools.
   useEffect(() => {
-    setAuthenticated(typeof window !== "undefined" && sessionStorage.getItem("cas_admin_authenticated") === "true");
+    let active = true;
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data.user;
+      if (!user) {
+        if (active) {
+          setAuthenticated(false);
+          setChecking(false);
+        }
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (active) {
+        setAuthenticated(profile?.role === "admin");
+        setAdminEmail(user.email ?? "");
+        setChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-surface">
+        <Loader2 className="size-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!authenticated) return <AdminSignIn onSuccess={(email) => { setAdminEmail(email); setAuthenticated(true); }} />;
 
   const signOut = async () => {
     // Record the sign-out while the admin session still exists.
     await logAdminAction("admin.logout");
-    sessionStorage.removeItem("cas_admin_authenticated");
     await supabase.auth.signOut();
     setAuthenticated(false);
   };

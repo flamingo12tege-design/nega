@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
 import { etb } from "@/lib/format";
 import { ocrImage } from "@/lib/ocr-server";
-import { verifyCbePayment } from "@/lib/cbe-server";
+import { submitVerifiedRecharge } from "@/lib/recharge-server";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
 import {
@@ -26,6 +26,7 @@ const validRechargeAmount = (value: unknown): number => {
   const amount = Number(value);
   return Number.isFinite(amount) &&
     amount >= rewardRules.minimumDeposit &&
+    amount <= rewardRules.maximumDeposit &&
     amount === Math.floor(amount)
     ? amount
     : 0;
@@ -98,8 +99,10 @@ function Page() {
   const scanTransaction = async (file: File): Promise<string | null> => {
     try {
       const scanFile = await compressForOcr(file);
+      const { data: sessionData } = await supabase.auth.getSession();
       const formData = new FormData();
       formData.append("file", scanFile);
+      formData.append("access_token", sessionData.session?.access_token ?? "");
       const result = await ocrImage({ data: formData });
       return result?.ok && result.txn ? result.txn : null;
     } catch {
@@ -167,9 +170,12 @@ function Page() {
 
   const doSubmit = async () => {
     if (validRechargeAmount(amount) !== amount) {
-      toast.error(`Minimum recharge is ${etb(rewardRules.minimumDeposit)}`, {
-        description: "Enter a whole ETB amount from the package catalogue.",
-      });
+      toast.error(
+        `Recharge must be ${etb(rewardRules.minimumDeposit)} – ${etb(rewardRules.maximumDeposit)}`,
+        {
+          description: "Enter a whole ETB amount from the package catalogue.",
+        },
+      );
       return;
     }
 
@@ -236,120 +242,63 @@ function Page() {
       proofUrl = path;
     }
 
-    // Verify the CBE payment before creating a deposit. A definitive rejection
-    // stops here; only an unreachable/transient verifier goes to manual review.
-    let verification: "verified" | "rejected" | "unverifiable" = "unverifiable";
-    let verifyMessage = "";
-
-    if (reference) {
-      try {
-        const result = await verifyCbePayment({
-          data: {
-            transaction_number: reference,
-            account_number: depositAccount?.account ?? "",
-          },
-        });
-        verifyMessage = result.message ?? "";
-        verification = result.ok
-          ? "verified"
-          : result.transient
-            ? "unverifiable"
-            : "rejected";
-      } catch {
-        verification = "unverifiable";
-        verifyMessage = "Could not reach the payment verification service";
-      }
+    // The browser never writes or approves a wallet row. A trusted server
+    // function validates the session, verifies the CBE payment, creates the
+    // ledger row and finalizes it through a service-role-only RPC.
+    let result;
+    try {
+      result = await submitVerifiedRecharge({
+        data: {
+          accessToken: sessionData.session?.access_token ?? "",
+          amount,
+          transactionRef: reference,
+          proofPath: proofUrl,
+          method,
+        },
+      });
+    } catch {
+      toast.error("Could not submit the recharge", {
+        description: "Check your connection and try again.",
+      });
+      return;
     }
 
-    const logFailure = async (outcome: "rejected" | "manual_review") => {
-      try {
-        await supabase.rpc("log_deposit_verification_failure", {
-          p_amount: amount,
-          p_transaction_ref: reference || null,
-          p_reason:
-            verifyMessage ||
-            (outcome === "rejected"
-              ? "Payment verification failed"
-              : "Verifier unavailable"),
-          p_proof_url: proofUrl,
-          p_outcome: outcome,
-        });
-      } catch {
-        // Logging is best-effort; never block or confuse the member.
-      }
-    };
-
-    if (verification === "rejected") {
-      await logFailure("rejected");
+    if (result.outcome === "rejected") {
       toast.error("Payment could not be verified", {
         description:
-          verifyMessage ||
+          result.message ??
           "Check the transaction number and receiving account, then try again.",
       });
       return;
     }
 
-    const { data: insertData, error } = await supabase
-      .from("wallet_ledger")
-      .insert({
-        user_id: userId,
-        amount,
-        type: "recharge",
-        status: "pending",
-        transaction_ref: reference || null,
-        proof_url: proofUrl,
-        description: `CBE recharge via ${method}`,
-      })
-      .select("id");
-
-    if (error) {
-      toast.error("Recharge submission failed", { description: error.message });
+    if (result.outcome === "error") {
+      toast.error("Recharge submission failed", {
+        description: result.message ?? "Please try again.",
+      });
       return;
     }
 
-    const ledgerId = insertData?.[0]?.id ?? null;
-
-    if (verification === "verified" && ledgerId) {
-      const { error: approveError } = await supabase.rpc(
-        "auto_approve_recharge",
-        { p_ledger_id: ledgerId },
-      );
-      if (!approveError) {
-        toast.success("Payment verified — recharge auto-approved");
-        navigate({
-          to: "/recharge/success",
-          search: {
-            amount,
-            method,
-            proof: Boolean(proofFile),
-            txn: reference,
-            approved: true,
-          },
-        });
-        return;
-      }
-      const detail = /could not find the function|does not exist/i.test(
-        approveError.message,
-      )
-        ? "Run AUTO_APPROVE_RECHARGE.sql in Supabase to enable instant approval."
-        : approveError.message;
-      toast("Payment verified, awaiting admin approval", {
-        description: detail,
+    if (result.outcome === "approved") {
+      toast.success("Payment verified — recharge auto-approved");
+      navigate({
+        to: "/recharge/success",
+        search: {
+          amount,
+          method,
+          proof: Boolean(proofFile),
+          txn: reference,
+          approved: true,
+        },
       });
-    } else if (verification === "unverifiable" && reference) {
-      await logFailure("manual_review");
-      toast("Sent for manual review", {
-        description:
-          "We couldn't verify the payment automatically. An admin will check your proof.",
-      });
-    } else if (!reference) {
-      await logFailure("manual_review");
-      toast("Sent for manual review", {
-        description:
-          "We couldn't read the transaction number from your screenshot. Type it manually next time for instant approval.",
-      });
+      return;
     }
 
+    toast("Sent for manual review", {
+      description:
+        result.message ??
+        "An admin will check your payment proof before approving it.",
+    });
     navigate({
       to: "/recharge/success",
       search: {

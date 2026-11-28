@@ -30,6 +30,8 @@ export const rewardRules = {
   /** ETB 50 welcome credit, payable once per new member. */
   registrationBonus: 50,
   minimumDeposit: 1300,
+  /** Highest package price. Deposits above this are rejected by the database. */
+  maximumDeposit: 300000,
   minimumWithdrawal: 200,
   /** Fixed payout choices only — members cannot enter an amount in between. */
   withdrawalAmounts: [

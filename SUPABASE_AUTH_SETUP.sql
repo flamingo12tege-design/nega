@@ -37,6 +37,45 @@ as $auth$
   ), false);
 $auth$;
 
+create or replace function public.minimum_deposit_amount()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $auth$
+  select coalesce(
+    (select nullif(value, '')::numeric
+     from public.platform_settings
+     where key = 'minimum_deposit_amount'
+     limit 1),
+    1300
+  );
+$auth$;
+
+revoke all on function public.minimum_deposit_amount() from public;
+grant execute on function public.minimum_deposit_amount() to authenticated;
+
+create or replace function public.maximum_deposit_amount()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $auth$
+  select coalesce(
+    (select nullif(value, '')::numeric
+     from public.platform_settings
+     where key = 'maximum_deposit_amount'
+     limit 1),
+    (select max(price) from public.packages),
+    300000
+  );
+$auth$;
+
+revoke all on function public.maximum_deposit_amount() from public;
+grant execute on function public.maximum_deposit_amount() to authenticated;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -45,11 +84,34 @@ set search_path = public
 as $$
 declare
   generated_member_id text;
+  v_phone text;
 begin
-  generated_member_id := coalesce(
-    new.raw_user_meta_data->>'member_id',
-    'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0')
+  -- Direct Supabase signups are not trusted: reject accounts without a valid
+  -- Ethiopian phone before a profile exists.
+  v_phone := public.normalized_ethiopian_phone(
+    coalesce(new.raw_user_meta_data->>'phone', new.phone)
   );
+  if v_phone is null then
+    raise exception 'A valid Ethiopian phone number is required to register';
+  end if;
+
+  generated_member_id := nullif(
+    btrim(coalesce(new.raw_user_meta_data->>'member_id', '')),
+    ''
+  );
+  if generated_member_id is null then
+    generated_member_id := 'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0');
+  end if;
+
+  -- A client-supplied code must never collide with an existing member.
+  while exists (
+    select 1
+    from public.profiles p
+    where upper(regexp_replace(coalesce(p.member_id, ''), '[^A-Za-z0-9]', '', 'g')) =
+          upper(regexp_replace(generated_member_id, '[^A-Za-z0-9]', '', 'g'))
+  ) loop
+    generated_member_id := 'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0');
+  end loop;
 
   insert into public.profiles (
     id,
@@ -62,7 +124,7 @@ begin
   values (
     new.id,
     generated_member_id,
-    coalesce(new.raw_user_meta_data->>'phone', new.phone),
+    v_phone,
     'user',
     0,
     new.raw_user_meta_data->>'referral_code'
@@ -81,12 +143,9 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
+-- Profiles are created only by the security-definer auth trigger. No direct
+-- client INSERT policy exists, so a user cannot self-assign role = 'admin'.
 drop policy if exists "Users insert own profile" on public.profiles;
-create policy "Users insert own profile"
-on public.profiles
-for insert
-to authenticated
-with check (id = auth.uid());
 
 drop policy if exists "Users view own profile" on public.profiles;
 create policy "Users view own profile"
@@ -112,7 +171,9 @@ with check (
   user_id = auth.uid()
   and type = 'recharge'
   and status = 'pending'
-  and amount >= 1300
+  and amount >= public.minimum_deposit_amount()
+  and amount <= public.maximum_deposit_amount()
+  and amount = floor(amount)
   and public.has_valid_deposit_phone(auth.uid())
 );
 

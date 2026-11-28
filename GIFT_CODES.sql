@@ -6,6 +6,66 @@
 
 reset role;
 
+-- Keep the phone gate usable even when this file is run on its own.
+create or replace function public.normalized_ethiopian_phone(p_phone text)
+returns text
+language plpgsql
+immutable
+security definer
+set search_path = public
+as $gift$
+declare
+  v_phone text := regexp_replace(btrim(coalesce(p_phone, '')), '[^0-9+]', '', 'g');
+begin
+  if v_phone ~ '^\+251[79][0-9]{8}$' then
+    return v_phone;
+  elsif v_phone ~ '^251[79][0-9]{8}$' then
+    return '+' || v_phone;
+  elsif v_phone ~ '^0[79][0-9]{8}$' then
+    return '+251' || substring(v_phone from 2);
+  end if;
+  return null;
+end;
+$gift$;
+
+create or replace function public.has_valid_deposit_phone(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $gift$
+  select coalesce((
+    select public.normalized_ethiopian_phone(p.phone) is not null
+    from public.profiles p
+    where p.id = p_user_id
+  ), false);
+$gift$;
+
+create or replace function public.maximum_deposit_amount()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $gift$
+  select coalesce(
+    (select nullif(value, '')::numeric
+     from public.platform_settings
+     where key = 'maximum_deposit_amount'
+     limit 1),
+    (select max(price) from public.packages),
+    300000
+  );
+$gift$;
+
+revoke all on function public.normalized_ethiopian_phone(text) from public;
+grant execute on function public.normalized_ethiopian_phone(text) to authenticated;
+revoke all on function public.has_valid_deposit_phone(uuid) from public;
+grant execute on function public.has_valid_deposit_phone(uuid) to authenticated;
+revoke all on function public.maximum_deposit_amount() from public;
+grant execute on function public.maximum_deposit_amount() to authenticated;
+
 create table if not exists public.gift_codes (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
@@ -84,8 +144,15 @@ begin
     raise exception 'Admin access required';
   end if;
 
-  if v_amount <= 0 then
-    raise exception 'Amount must be greater than zero';
+  if v_amount <= 0
+     or v_amount <> floor(v_amount)
+     or v_amount > public.maximum_deposit_amount()
+  then
+    raise exception 'Gift amount must be a whole ETB amount up to %', public.maximum_deposit_amount();
+  end if;
+
+  if v_max < 1 or v_max > 100 then
+    raise exception 'Redemption limit must be between 1 and 100';
   end if;
 
   for i in 1..v_count loop
@@ -123,6 +190,11 @@ declare
 begin
   if v_user_id is null then
     raise exception 'Authentication required';
+  end if;
+
+  -- Phone-less/bot accounts must not be able to consume gift codes.
+  if not public.has_valid_deposit_phone(v_user_id) then
+    raise exception 'A valid phone number is required to redeem a gift code';
   end if;
 
   if v_code = '' then

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { isRateLimited, requireServerUser } from "@/lib/server-auth";
 
 export type OcrScanResult = { ok: boolean; txn?: string; error?: string; text?: string };
 
@@ -63,44 +64,56 @@ async function callOcr(apiKey: string, file: File, engine: "2" | "3"): Promise<O
 }
 
 /**
- * Server-side OCR.space receipt scan.
- * Runs on the server so the OCR API key never ships to the browser.
- * Expects a multipart FormData with a `file` field (the receipt screenshot).
- * Tries OCR engine 2, then engine 3, and returns the first FT/CHK reference found.
+ * Authenticated server-side OCR.space receipt scan. The API key is server-only
+ * and each signed-in member is throttled so anonymous callers cannot exhaust
+ * the OCR quota.
  */
-const ocrImageFn = createServerFn({ method: "POST" }).handler(async ({ data }) => {
-  const formData = data as unknown as FormData;
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return { ok: false, error: "No file uploaded" };
-  }
+const ocrImageFn = createServerFn({ method: "POST" }).handler(
+  async ({ data }): Promise<OcrScanResult> => {
+    const formData = data as unknown as FormData;
+    const auth = await requireServerUser(String(formData.get("access_token") ?? ""));
+    if (!auth.ok) return { ok: false, error: auth.message };
 
-  const apiKey = process.env["OCR_SPACE_API_KEY"] ?? process.env["VITE_OCR_SPACE_API_KEY"] ?? import.meta.env["VITE_OCR_SPACE_API_KEY"] ?? "";
-  if (!apiKey) {
-    return { ok: false, error: "OCR service is not configured" };
-  }
-
-  let lastError = "No transaction found";
-  let lastText = "";
-
-  for (const engine of ["2", "3"] as const) {
-    const json = await callOcr(apiKey, file, engine);
-    if (!json) {
-      lastError = "OCR request failed";
-      continue;
+    if (isRateLimited(`ocr:${auth.userId}`, 12, 60_000)) {
+      return { ok: false, error: "Too many scans. Please try again shortly." };
     }
 
-    const page = json.ParsedResults?.[0];
-    const text = String(page?.ParsedText ?? "");
-    if (text) lastText = text;
+    const file = formData.get("file");
+    if (!(file instanceof File)) return { ok: false, error: "No file uploaded" };
+    if (!file.type.startsWith("image/")) {
+      return { ok: false, error: "Upload an image file" };
+    }
+    if (file.size > 1_500_000) {
+      return { ok: false, error: "Screenshot is too large" };
+    }
 
-    const txn = extractTxn(text);
-    if (txn) return { ok: true, txn, text };
+    const apiKey = process.env["OCR_SPACE_API_KEY"] ?? "";
+    if (!apiKey) return { ok: false, error: "OCR service is not configured" };
 
-    lastError = json.ErrorMessage || page?.ErrorMessage || page?.ErrorDetails || "No transaction found";
-  }
+    let lastError = "No transaction found";
+    let lastText = "";
 
-  return { ok: false, error: lastError, text: lastText };
-});
+    for (const engine of ["2", "3"] as const) {
+      const json = await callOcr(apiKey, file, engine);
+      if (!json) {
+        lastError = "OCR request failed";
+        continue;
+      }
 
-export const ocrImage = ocrImageFn as unknown as (opts: { data: FormData }) => Promise<OcrScanResult>;
+      const page = json.ParsedResults?.[0];
+      const text = String(page?.ParsedText ?? "");
+      if (text) lastText = text;
+
+      const txn = extractTxn(text);
+      if (txn) return { ok: true, txn, text };
+
+      lastError = json.ErrorMessage || page?.ErrorMessage || page?.ErrorDetails || "No transaction found";
+    }
+
+    return { ok: false, error: lastError, text: lastText };
+  },
+);
+
+export const ocrImage = ocrImageFn as unknown as (opts: {
+  data: FormData;
+}) => Promise<OcrScanResult>;

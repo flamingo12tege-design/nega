@@ -112,6 +112,9 @@ declare
   v_user_id uuid := auth.uid();
   v_amount numeric := coalesce(p_amount, 0);
   v_account text := nullif(btrim(coalesce(p_account, '')), '');
+  v_saved_account text := nullif(btrim(coalesce((
+    select payout_account from public.profiles where id = auth.uid()
+  ), '')), '');
   v_method text := coalesce(nullif(btrim(p_method), ''), 'CBE');
   v_password text := btrim(coalesce(p_password, ''));
   v_earned numeric;
@@ -228,13 +231,12 @@ begin
   v_fee := round(v_amount * v_fee_percent / 100);
   v_net := v_amount - v_fee;
 
-  -- Fall back to the bank account saved on the profile.
+  -- The payout account must be the one saved on the member's profile. A caller
+  -- must not be able to redirect funds with a request parameter.
   if v_account is null then
-    v_account := nullif(btrim(coalesce((
-      select payout_account
-      from public.profiles
-      where id = v_user_id
-    ), '')), '');
+    v_account := v_saved_account;
+  elsif v_account <> v_saved_account then
+    raise exception 'Payout account does not match your saved account';
   end if;
 
   if v_account is null then

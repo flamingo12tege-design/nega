@@ -80,7 +80,9 @@ create table if not exists public.platform_settings (
 );
 
 insert into public.platform_settings (key, value)
-values ('minimum_deposit_amount', '1300')
+values
+  ('minimum_deposit_amount', '1300'),
+  ('maximum_deposit_amount', '300000')
 on conflict (key) do nothing;
 
 create or replace function public.minimum_deposit_amount()
@@ -101,6 +103,35 @@ $phone$;
 
 revoke all on function public.minimum_deposit_amount() from public;
 grant execute on function public.minimum_deposit_amount() to authenticated;
+
+-- Hard cap: no deposit may exceed the highest package price.
+create or replace function public.maximum_deposit_amount()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $phone$
+  select coalesce(
+    (select nullif(value, '')::numeric
+     from public.platform_settings
+     where key = 'maximum_deposit_amount'
+     limit 1),
+    (select max(price) from public.packages),
+    300000
+  );
+$phone$;
+
+revoke all on function public.maximum_deposit_amount() from public;
+grant execute on function public.maximum_deposit_amount() to authenticated;
+
+-- A bank reference may only back one live recharge.
+create unique index if not exists wallet_ledger_recharge_ref_unique
+  on public.wallet_ledger (upper(btrim(transaction_ref)))
+  where type in ('recharge', 'deposit')
+    and status in ('pending', 'completed')
+    and transaction_ref is not null
+    and btrim(transaction_ref) <> '';
 
 -- 2) A phone number can belong to only one member. Null/admin accounts are
 --    unaffected because the trigger only checks non-null, valid numbers.
@@ -143,6 +174,8 @@ with check (
   and type = 'recharge'
   and status = 'pending'
   and amount >= public.minimum_deposit_amount()
+  and amount <= public.maximum_deposit_amount()
+  and amount = floor(amount)
   and public.has_valid_deposit_phone(auth.uid())
 );
 
@@ -156,6 +189,14 @@ security definer
 set search_path = public
 as $phone$
 begin
+  if new.type = 'recharge' and new.amount > public.maximum_deposit_amount() then
+    raise exception 'Maximum deposit is ETB %', public.maximum_deposit_amount();
+  end if;
+
+  if new.type = 'recharge' and new.amount <> floor(new.amount) then
+    raise exception 'Deposit amount must be a whole ETB amount';
+  end if;
+
   if new.type in ('recharge', 'deposit')
      and new.status in ('pending', 'completed')
      and not public.has_valid_deposit_phone(new.user_id) then
@@ -170,6 +211,34 @@ create trigger wallet_ledger_deposit_phone
 before insert or update of status, type, user_id
 on public.wallet_ledger
 for each row execute function public.enforce_deposit_phone();
+
+-- Only one pending recharge per member at a time.
+create or replace function public.enforce_single_pending_recharge()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $phone$
+begin
+  if new.type = 'recharge' and new.status = 'pending' and exists (
+    select 1
+    from public.wallet_ledger l
+    where l.user_id = new.user_id
+      and l.type = 'recharge'
+      and l.status = 'pending'
+      and l.id <> new.id
+  ) then
+    raise exception 'Another recharge is already awaiting review';
+  end if;
+  return new;
+end;
+$phone$;
+
+drop trigger if exists wallet_ledger_single_pending_recharge on public.wallet_ledger;
+create trigger wallet_ledger_single_pending_recharge
+before insert or update of status, user_id, type
+on public.wallet_ledger
+for each row execute function public.enforce_single_pending_recharge();
 
 -- 5) Phone-less bot signups cannot claim the ETB 50 welcome bonus either.
 insert into public.platform_settings (key, value)

@@ -6,6 +6,7 @@
 --
 -- On hosted Supabase, create the user in:
 --   Authentication -> Users -> Add user -> enter password -> Auto Confirm User = ON
+--   User Metadata: {"phone":"+2519XXXXXXXX"}
 -- then run ADD_CO_ADMIN.sql to grant admin role.
 -- Or use the admin dashboard Admins form (needs SUPABASE_SERVICE_ROLE_KEY).
 --
@@ -14,12 +15,16 @@
 -- IMPORTANT: change the password in the CTE below before running.
 -- This script creates the Auth user (bcrypt password, email already confirmed),
 -- links the email identity, and gives the profile the admin role.
+--
+-- The signup trigger now requires a valid Ethiopian phone, so the metadata and
+-- profile below include a placeholder. Replace it with a real admin number
+-- before running, and make sure no other member already uses it.
 
 with new_user as (
   select
     gen_random_uuid() as id,
     lower('Ake@tegene.com') as email,
-    'Ake@2026' as password
+    'REPLACE_WITH_A_LONG_RANDOM_PASSWORD' as password
   where not exists (
     select 1 from auth.users where lower(email) = lower('Ake@tegene.com')
   )
@@ -50,7 +55,7 @@ select
   crypt(password, gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
-  '{}'::jsonb,
+  jsonb_build_object('phone', '+251900000000'),
   now(),
   now(),
   '',
@@ -91,7 +96,7 @@ insert into public.profiles (id, member_id, phone, role, wallet_balance)
 select
   u.id,
   'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0'),
-  null,
+  '+251900000000',
   'admin',
   0
 from auth.users u

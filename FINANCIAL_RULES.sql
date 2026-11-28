@@ -22,6 +22,7 @@ insert into public.platform_settings (key, value) values
   -- Welcome / deposits / withdrawals.
   ('registration_bonus_amount', '50'),
   ('minimum_deposit_amount', '1300'),
+  ('maximum_deposit_amount', '300000'),
   ('minimum_withdrawal_amount', '200'),
   ('maximum_withdrawal_amount', '30000'),
   ('withdrawal_fixed_amounts', '200,300,500,1000,1500,3000,5000,10000,20000,30000'),

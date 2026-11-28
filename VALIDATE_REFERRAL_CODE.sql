@@ -9,6 +9,50 @@
 
 reset role;
 
+-- Phone and deposit helpers used by this signup trigger.
+create or replace function public.normalized_ethiopian_phone(p_phone text)
+returns text
+language plpgsql
+immutable
+security definer
+set search_path = public
+as $fn$
+declare
+  v_phone text := regexp_replace(btrim(coalesce(p_phone, '')), '[^0-9+]', '', 'g');
+begin
+  if v_phone ~ '^\+251[79][0-9]{8}$' then
+    return v_phone;
+  elsif v_phone ~ '^251[79][0-9]{8}$' then
+    return '+' || v_phone;
+  elsif v_phone ~ '^0[79][0-9]{8}$' then
+    return '+251' || substring(v_phone from 2);
+  end if;
+  return null;
+end;
+$fn$;
+
+create or replace function public.maximum_deposit_amount()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select coalesce(
+    (select nullif(value, '')::numeric
+     from public.platform_settings
+     where key = 'maximum_deposit_amount'
+     limit 1),
+    (select max(price) from public.packages),
+    300000
+  );
+$fn$;
+
+revoke all on function public.normalized_ethiopian_phone(text) from public;
+grant execute on function public.normalized_ethiopian_phone(text) to authenticated;
+revoke all on function public.maximum_deposit_amount() from public;
+grant execute on function public.maximum_deposit_amount() to authenticated;
+
 -- 1) Public (anon-callable) existence check. It only returns true/false and
 --    never exposes profile data.
 create or replace function public.referral_code_exists(p_code text)
@@ -47,11 +91,34 @@ declare
   generated_member_id text;
   raw_referral text;
   safe_referral text;
+  v_phone text;
 begin
-  generated_member_id := coalesce(
-    new.raw_user_meta_data->>'member_id',
-    'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0')
+  -- Never allow a profile to be created for a direct signup without a valid
+  -- Ethiopian phone number.
+  v_phone := public.normalized_ethiopian_phone(
+    coalesce(new.raw_user_meta_data->>'phone', new.phone)
   );
+  if v_phone is null then
+    raise exception 'A valid Ethiopian phone number is required to register';
+  end if;
+
+  generated_member_id := nullif(
+    btrim(coalesce(new.raw_user_meta_data->>'member_id', '')),
+    ''
+  );
+  if generated_member_id is null then
+    generated_member_id := 'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0');
+  end if;
+
+  -- A client-supplied code must never collide with an existing member.
+  while exists (
+    select 1
+    from public.profiles p
+    where upper(regexp_replace(coalesce(p.member_id, ''), '[^A-Za-z0-9]', '', 'g')) =
+          upper(regexp_replace(generated_member_id, '[^A-Za-z0-9]', '', 'g'))
+  ) loop
+    generated_member_id := 'CAS-' || lpad(floor(random() * 900000 + 100000)::text, 6, '0');
+  end loop;
 
   raw_referral := nullif(
     upper(regexp_replace(coalesce(new.raw_user_meta_data->>'referral_code', ''), '[^a-zA-Z0-9]', '', 'g')),
@@ -79,7 +146,7 @@ begin
   values (
     new.id,
     generated_member_id,
-    coalesce(new.raw_user_meta_data->>'phone', new.phone),
+    v_phone,
     'user',
     0,
     safe_referral

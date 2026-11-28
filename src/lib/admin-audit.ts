@@ -9,38 +9,25 @@ type AuditTarget = {
 };
 
 /**
- * Write an admin action to public.admin_audit_logs.
+ * Write an admin action through the server-side RPC.
  *
- * This is a direct insert instead of an RPC so no SQL functions or
- * dollar-quoted strings are needed. Best effort: audit failures never block
+ * Direct table inserts are intentionally blocked: log_admin_action() stamps
+ * admin identity, IP, user agent and time from the authenticated request, so a
+ * client cannot forge those fields. Best effort: audit failures never block
  * the action that triggered them.
  */
 export async function logAdminAction(
   action: string,
   target: AuditTarget = {},
-  admin?: { id: string; email: string },
+  _admin?: { id: string; email: string },
 ) {
   try {
-    let adminId = admin?.id;
-    let adminEmail: string | null | undefined = admin?.email;
-
-    if (!adminId) {
-      const { data } = await supabase.auth.getUser();
-      adminId = data.user?.id;
-      adminEmail = adminEmail ?? data.user?.email ?? null;
-    }
-
-    if (!adminId) return;
-
-    const { error } = await supabase.from("admin_audit_logs").insert({
-      admin_id: adminId,
-      admin_email: adminEmail ?? null,
-      action,
-      target_table: target.table ?? null,
-      target_type: target.type ?? null,
-      target_id: target.id ?? null,
-      member_id: target.memberId ?? null,
-      metadata: target.metadata ?? {},
+    const { error } = await supabase.rpc("log_admin_action", {
+      p_action: action,
+      p_target_type: target.type ?? target.table ?? null,
+      p_target_id: target.id ?? null,
+      p_member_id: target.memberId ?? null,
+      p_metadata: target.metadata ?? {},
     });
 
     if (error) console.warn("Admin audit log failed:", error.message);

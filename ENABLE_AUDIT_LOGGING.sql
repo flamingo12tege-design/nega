@@ -1,9 +1,9 @@
--- Enable direct audit logging from the admin console
+-- Lock the admin audit log
 -- Run this in the Supabase SQL Editor. Safe to re-run.
 --
--- This lets the admin console write audit rows straight into the table
--- without needing a PL/pgSQL function. It also keeps the existing admin read
--- policy so only admins can see the log.
+-- Audit rows must only be written through log_admin_action(), which stamps
+-- identity, IP, user agent and time server-side. Direct client inserts are
+-- removed, and existing rows cannot be edited or deleted.
 
 alter table public.admin_audit_logs enable row level security;
 
@@ -21,18 +21,23 @@ create policy "Admins read audit logs"
     )
   );
 
+-- No direct INSERT policy: clients must call log_admin_action().
 drop policy if exists "Admins insert audit logs" on public.admin_audit_logs;
-create policy "Admins insert audit logs"
-  on public.admin_audit_logs
-  for insert
-  to authenticated
-  with check (
-    exists (
-      select 1
-      from public.profiles p
-      where p.id = auth.uid()
-        and coalesce(p.role, 'user') = 'admin'
-    )
-  );
+
+create or replace function public.reject_audit_mutation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $audit$
+begin
+  raise exception 'Audit rows are immutable';
+end;
+$audit$;
+
+drop trigger if exists admin_audit_immutable on public.admin_audit_logs;
+create trigger admin_audit_immutable
+before update or delete on public.admin_audit_logs
+for each row execute function public.reject_audit_mutation();
 
 notify pgrst, 'reload schema';
