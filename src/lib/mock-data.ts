@@ -13,7 +13,16 @@ import heroLaundry from "@/assets/hero_laundry.webp";
 import heroFriends from "@/assets/hero_friends.webp";
 import type { ReferralLevel, ReferralSettings } from "./referral";
 
-export type Appliance = { id: string; tier: number; name: string; price: number; dailyPayout: number; image: string; short: string; details: string[] };
+export type Appliance = {
+  id: string;
+  tier: number;
+  name: string;
+  price: number;
+  dailyPayout: number;
+  image: string;
+  short: string;
+  details: string[];
+};
 
 export const rewardRules = {
   /** Daily income is ~4.6% of the package price, stored as whole birr (ETB 1,300 -> ETB 60/day). */
@@ -22,6 +31,10 @@ export const rewardRules = {
   registrationBonus: 50,
   minimumDeposit: 1300,
   minimumWithdrawal: 300,
+  /** Fixed payout choices only — members cannot enter an amount in between. */
+  withdrawalAmounts: [
+    300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000,
+  ] as readonly number[],
   withdrawalFeePercent: 10,
   /** Recycle/payout window for each package: 45 daily claims. */
   packageDurationDays: 45,
@@ -44,16 +57,118 @@ export const isLocked = (a: Appliance) => a.tier >= LOCKED_FROM_TIER;
 
 /** Default catalogue used as an SSR seed; the live list is loaded from Supabase `packages`. */
 export const appliances: Appliance[] = [
-  { id: "starter", tier: 1, name: "Electric Kettle", price: 1300, dailyPayout: 60, image: kettle, short: "Everyday essentials to begin your CAS journey.", details: ["Entry-level package", "Contents confirmed by CAS admin", "Fast processing"] },
-  { id: "basic", tier: 2, name: "Steam Iron", price: 4200, dailyPayout: 193, image: iron, short: "Practical helpers for daily home care.", details: ["Small home appliance tier", "Contents confirmed by CAS admin", "Standard support"] },
-  { id: "kitchen", tier: 3, name: "Blender", price: 12500, dailyPayout: 575, image: blender, short: "Upgrade your kitchen routine.", details: ["Kitchen appliance tier", "Contents confirmed by CAS admin", "Priority support"] },
-  { id: "family", tier: 4, name: "Rice Cooker", price: 18000, dailyPayout: 828, image: rice, short: "Made for busy family homes.", details: ["Family tier", "Contents confirmed by CAS admin", "Priority support"] },
-  { id: "comfort", tier: 5, name: "Comfort Package", price: 35000, dailyPayout: 1610, image: microwave, short: "Comfort and convenience, every day.", details: ["Mid-size appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
-  { id: "premium", tier: 6, name: "Premium Package", price: 75000, dailyPayout: 3450, image: washer, short: "Large appliances for a modern home.", details: ["Large appliance tier", "Contents confirmed by CAS admin", "Dedicated support"] },
-  { id: "elite", tier: 7, name: "Elite Package", price: 150000, dailyPayout: 6900, image: fridge, short: "Top-tier appliances for refined living.", details: ["Elite tier", "Contents confirmed by CAS admin", "VIP support"] },
-  { id: "ultimate", tier: 8, name: "Ultimate Home Package", price: 300000, dailyPayout: 13800, image: pack, short: "The complete CAS home experience.", details: ["Full home tier", "Contents confirmed by CAS admin", "VIP support"] },
+  {
+    id: "starter",
+    tier: 1,
+    name: "Electric Kettle",
+    price: 1300,
+    dailyPayout: 60,
+    image: kettle,
+    short: "Everyday essentials to begin your CAS journey.",
+    details: [
+      "Entry-level package",
+      "Contents confirmed by CAS admin",
+      "Fast processing",
+    ],
+  },
+  {
+    id: "basic",
+    tier: 2,
+    name: "Steam Iron",
+    price: 4200,
+    dailyPayout: 193,
+    image: iron,
+    short: "Practical helpers for daily home care.",
+    details: [
+      "Small home appliance tier",
+      "Contents confirmed by CAS admin",
+      "Standard support",
+    ],
+  },
+  {
+    id: "kitchen",
+    tier: 3,
+    name: "Blender",
+    price: 12500,
+    dailyPayout: 575,
+    image: blender,
+    short: "Upgrade your kitchen routine.",
+    details: [
+      "Kitchen appliance tier",
+      "Contents confirmed by CAS admin",
+      "Priority support",
+    ],
+  },
+  {
+    id: "family",
+    tier: 4,
+    name: "Rice Cooker",
+    price: 18000,
+    dailyPayout: 828,
+    image: rice,
+    short: "Made for busy family homes.",
+    details: [
+      "Family tier",
+      "Contents confirmed by CAS admin",
+      "Priority support",
+    ],
+  },
+  {
+    id: "comfort",
+    tier: 5,
+    name: "Comfort Package",
+    price: 35000,
+    dailyPayout: 1610,
+    image: microwave,
+    short: "Comfort and convenience, every day.",
+    details: [
+      "Mid-size appliance tier",
+      "Contents confirmed by CAS admin",
+      "Dedicated support",
+    ],
+  },
+  {
+    id: "premium",
+    tier: 6,
+    name: "Premium Package",
+    price: 75000,
+    dailyPayout: 3450,
+    image: washer,
+    short: "Large appliances for a modern home.",
+    details: [
+      "Large appliance tier",
+      "Contents confirmed by CAS admin",
+      "Dedicated support",
+    ],
+  },
+  {
+    id: "elite",
+    tier: 7,
+    name: "Elite Package",
+    price: 150000,
+    dailyPayout: 6900,
+    image: fridge,
+    short: "Top-tier appliances for refined living.",
+    details: ["Elite tier", "Contents confirmed by CAS admin", "VIP support"],
+  },
+  {
+    id: "ultimate",
+    tier: 8,
+    name: "Ultimate Home Package",
+    price: 300000,
+    dailyPayout: 13800,
+    image: pack,
+    short: "The complete CAS home experience.",
+    details: [
+      "Full home tier",
+      "Contents confirmed by CAS admin",
+      "VIP support",
+    ],
+  },
 ];
-export const initialLockedIds = appliances.filter((a) => a.tier >= LOCKED_FROM_TIER).map((a) => a.id);
+export const initialLockedIds = appliances
+  .filter((a) => a.tier >= LOCKED_FROM_TIER)
+  .map((a) => a.id);
 
 /** Headline plans for the new-member announcement. All payout figures are whole birr. */
 export const vipPlans = appliances.slice(0, 2).map((a) => ({
@@ -64,15 +179,45 @@ export const vipPlans = appliances.slice(0, 2).map((a) => ({
   totalReturn: Math.round(a.dailyPayout * rewardRules.packageDurationDays),
 }));
 
-export const depositAccount = { name: "Tegene", bank: "CBE", account: "1000604178669" } as const;
+export const depositAccount = {
+  name: "Tegene",
+  bank: "CBE",
+  account: "1000604178669",
+} as const;
 
 export const heroSlides = [
-  { image: heroKitchen, title: "Make Your Home Better with CAS", subtitle: "Discover quality appliances for a better everyday life.", cta: "Explore Appliances", to: "/appliances" as const },
-  { image: heroLaundry, title: "Your Dream Home Starts Here", subtitle: "Find the appliances that make life easier.", cta: "Shop Now", to: "/appliances" as const },
-  { image: heroFriends, title: "Invite Friends. Earn Rewards.", subtitle: "Share CAS with friends and enjoy referral bonuses.", cta: "Invite Friends", to: "/team" as const },
+  {
+    image: heroKitchen,
+    title: "Make Your Home Better with CAS",
+    subtitle: "Discover quality appliances for a better everyday life.",
+    cta: "Explore Appliances",
+    to: "/appliances" as const,
+  },
+  {
+    image: heroLaundry,
+    title: "Your Dream Home Starts Here",
+    subtitle: "Find the appliances that make life easier.",
+    cta: "Shop Now",
+    to: "/appliances" as const,
+  },
+  {
+    image: heroFriends,
+    title: "Invite Friends. Earn Rewards.",
+    subtitle: "Share CAS with friends and enjoy referral bonuses.",
+    cta: "Invite Friends",
+    to: "/team" as const,
+  },
 ];
 
-export type TxType = "Registration bonus" | "Recruitment bonus" | "Team commission" | "Task reward" | "Daily income" | "Purchase" | "Deposit" | "Adjustment";
+export type TxType =
+  | "Registration bonus"
+  | "Recruitment bonus"
+  | "Team commission"
+  | "Task reward"
+  | "Daily income"
+  | "Purchase"
+  | "Deposit"
+  | "Adjustment";
 
 export type TeamMember = {
   name: string;
@@ -88,11 +233,26 @@ export type TeamMember = {
   daysActive: number;
 };
 
-export type TaskStatus = "Available" | "In Progress" | "Under Review" | "Completed";
+export type TaskStatus =
+  "Available" | "In Progress" | "Under Review" | "Completed";
 /** Bonus tasks are admin-created only; none are seeded by default. */
-export const initialTasks: { id: string; title: string; desc: string; reward: number; status: TaskStatus; icon: string }[] = [];
+export const initialTasks: {
+  id: string;
+  title: string;
+  desc: string;
+  reward: number;
+  status: TaskStatus;
+  icon: string;
+}[] = [];
 
-export type NewsItem = { id: string; title: string; date: string; image: string; tag: string; body: string };
+export type NewsItem = {
+  id: string;
+  title: string;
+  date: string;
+  image: string;
+  tag: string;
+  body: string;
+};
 export const defaultNewsImage = heroKitchen;
 
 export type AdminUser = {
@@ -102,7 +262,24 @@ export type AdminUser = {
   joined: string;
   status: "Active" | "Banned";
   balance: number;
-  purchases: { id: string; applianceId: string; status: "Pending" | "Approved" | "Rejected"; date: string }[];
-  deposits: { id: string; amount: number; date: string; method: string; status: "Completed" | "Pending" }[];
-  history: { id: string; type: TxType; amount: number; date: string; status: "Completed" | "Pending" }[];
+  purchases: {
+    id: string;
+    applianceId: string;
+    status: "Pending" | "Approved" | "Rejected";
+    date: string;
+  }[];
+  deposits: {
+    id: string;
+    amount: number;
+    date: string;
+    method: string;
+    status: "Completed" | "Pending";
+  }[];
+  history: {
+    id: string;
+    type: TxType;
+    amount: number;
+    date: string;
+    status: "Completed" | "Pending";
+  }[];
 };

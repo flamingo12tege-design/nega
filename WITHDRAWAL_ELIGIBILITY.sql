@@ -6,10 +6,11 @@
 -- approved purchase is withdrawable. Welcome/gift promotional credits and
 -- deposits/recharges are excluded. Pending AND completed withdrawals are
 -- reserved so an approved payout cannot be requested a second time.
--- Minimum withdrawal is ETB 300 (editable in public.platform_settings); there
--- is no upper limit other than the member's earned balance. Amounts must be
--- whole ETB. A 10% whole-birr fee is retained by CAS; the member receives net.
--- No withdrawals on Sunday, 3:00 AM - 11:00 PM EAT only, once/day.
+-- Withdrawals use fixed whole-ETB amounts only:
+-- 300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000.
+-- No in-between/custom amounts are accepted. A 10% whole-birr fee is retained
+-- by CAS; the member receives net. No withdrawals on Sunday, 3:00 AM -
+-- 11:00 PM EAT only, once/day.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
@@ -21,10 +22,18 @@ create table if not exists public.platform_settings (
   updated_at timestamptz not null default now()
 );
 
--- Seed defaults only; never overwrite rules an admin has edited.
+-- Fixed-amount rules are canonical; align the min/max even if they were edited
+-- before this rule change. Other settings keep any admin edits.
 insert into public.platform_settings (key, value)
 values
   ('minimum_withdrawal_amount', '300'),
+  ('maximum_withdrawal_amount', '30000')
+on conflict (key) do update
+  set value = excluded.value, updated_at = now();
+
+insert into public.platform_settings (key, value)
+values
+  ('withdrawal_fixed_amounts', '300,500,1000,1500,3000,5000,10000,20000,30000'),
   ('withdrawal_fee_percent', '10')
 on conflict (key) do nothing;
 
@@ -137,9 +146,12 @@ begin
   if v_amount <= 0 then
     raise exception 'Enter a valid withdrawal amount';
   end if;
-  -- Fixed whole-ETB amounts only; there is no maximum cap.
+  -- Fixed whole-ETB amounts only; no custom or in-between values.
   if v_amount <> floor(v_amount) then
     raise exception 'Withdrawal amount must be a whole ETB amount';
+  end if;
+  if v_amount not in (300, 500, 1000, 1500, 3000, 5000, 10000, 20000, 30000) then
+    raise exception 'Choose one of the fixed withdrawal amounts: 300, 500, 1000, 1500, 3000, 5000, 10000, 20000 or 30000';
   end if;
 
   -- Withdrawal schedule: Monday-Saturday, 3:00 AM - 11:00 PM (EAT).

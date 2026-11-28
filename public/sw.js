@@ -1,6 +1,6 @@
 // Bump this when deployments change hashed assets so old entries are purged.
 const CACHE_PREFIX = "cas-shell-";
-const CACHE_NAME = "cas-shell-v7";
+const CACHE_NAME = "cas-shell-v8";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -8,14 +8,17 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys
-          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
-          .map((key) => caches.delete(key)),
-      ))
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+            .map((key) => caches.delete(key)),
+        ),
+      )
       .then(() => self.clients.claim())
-      .catch(() => undefined)
+      .catch(() => undefined),
   );
 });
 
@@ -42,7 +45,8 @@ async function networkFirst(request) {
     const response = await fetch(request);
     if (response && response.ok) {
       const copy = response.clone();
-      caches.open(CACHE_NAME)
+      caches
+        .open(CACHE_NAME)
         .then((cache) => cache.put("/", copy))
         .catch(() => undefined);
     }
@@ -64,7 +68,8 @@ async function cacheFirst(request) {
     const response = await fetchAsset(request);
     if (response && response.ok) {
       const copy = response.clone();
-      caches.open(CACHE_NAME)
+      caches
+        .open(CACHE_NAME)
         .then((cache) => cache.put(request, copy))
         .catch(() => undefined);
     }
