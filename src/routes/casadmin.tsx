@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -98,6 +98,7 @@ const adminSecurityPoints = [
 ] as const;
 
 function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
+  const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -134,6 +135,10 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
       return;
     }
 
+    // Keep the shared auth state in sync so leaving the admin console does not
+    // bounce back to the member dashboard with a stale "logged in" flag.
+    actions.setLoggedIn(true);
+
     // Record the successful sign-in. Best effort so login still works.
     await logAdminAction(
       "admin.login",
@@ -142,6 +147,15 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
     );
 
     onSuccess(email);
+  };
+
+  const backToAuth = async () => {
+    actions.setLoggedIn(false);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      navigate({ to: "/login", replace: true });
+    }
   };
 
   const securityPoints = adminSecurityPoints;
@@ -268,7 +282,7 @@ function AdminSignIn({ onSuccess }: { onSuccess: (email: string) => void }) {
           </p>
 
           <div className="mt-6 border-t pt-4 text-center">
-            <Link to="/" className="text-sm font-semibold text-primary hover:text-accent">Back to CAS</Link>
+            <button type="button" onClick={() => void backToAuth()} className="text-sm font-semibold text-primary hover:text-accent">Back to CAS</button>
           </div>
         </form>
       </main>
@@ -326,14 +340,26 @@ function AdminRoute() {
   const signOut = async () => {
     // Record the sign-out while the admin session still exists.
     await logAdminAction("admin.logout");
+    actions.setLoggedIn(false);
     await supabase.auth.signOut();
     setAuthenticated(false);
   };
 
-  return <Page onSignOut={() => { void signOut(); }} adminEmail={adminEmail} />;
+  return <Page onSignOut={signOut} adminEmail={adminEmail} />;
 }
 
-function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: string }) {
+function Page({ onSignOut, adminEmail }: { onSignOut: () => Promise<void>; adminEmail: string }) {
+  const navigate = useNavigate();
+
+  // Leave the admin console through the member auth page, not the dashboard.
+  const exitToAuth = async () => {
+    try {
+      await onSignOut();
+    } finally {
+      navigate({ to: "/login", replace: true });
+    }
+  };
+
   const [tab, setTab] = useState<Tab>("analytics");
   const purchases = useStore((s) => s.purchases);
   const tasks = useStore((s) => s.tasks);
@@ -722,7 +748,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-xs text-muted-foreground md:block">{fmtDate(new Date().toISOString())}</span>
-            <Link to="/" className="press rounded-lg bg-secondary px-3 py-1.5 text-sm font-semibold">Exit</Link>
+            <button type="button" onClick={() => void exitToAuth()} className="press rounded-lg bg-secondary px-3 py-1.5 text-sm font-semibold">Exit</button>
             <button type="button" onClick={onSignOut} className="press rounded-lg bg-destructive px-3 py-1.5 text-sm font-semibold text-destructive-foreground">Sign out</button>
           </div>
         </div>
