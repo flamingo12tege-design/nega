@@ -7,9 +7,7 @@ import {
   Check,
   CheckCircle2,
   Clock3,
-  LockKeyhole,
   RefreshCw,
-  ShoppingBag,
   Sparkles,
   Timer,
 } from "lucide-react";
@@ -399,145 +397,91 @@ function Page() {
           </p>
         </section>
 
-        <section className="rounded-[28px] bg-card p-5 shadow-card">
-          {!eligibility ? (
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 animate-pulse rounded-2xl bg-secondary" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3.5 w-40 animate-pulse rounded-full bg-secondary" />
-                  <div className="h-3 w-24 animate-pulse rounded-full bg-secondary" />
+        {eligibility?.has_package !== false && (
+          <section className="rounded-[28px] bg-card p-5 shadow-card">
+            {!eligibility ? (
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 animate-pulse rounded-2xl bg-secondary" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-40 animate-pulse rounded-full bg-secondary" />
+                    <div className="h-3 w-24 animate-pulse rounded-full bg-secondary" />
+                  </div>
+                </div>
+                <div className="mt-5 h-2.5 w-full animate-pulse rounded-full bg-secondary" />
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Checking your withdrawal eligibility…
+                </p>
+              </div>
+            ) : remaining > 0 ? (
+              <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                      Progress to payout
+                    </p>
+                    <h2 className="mt-1.5 text-xl font-extrabold tracking-tight">
+                      Almost there
+                    </h2>
+                  </div>
+                  <span className="shrink-0 rounded-2xl bg-tint-green px-3 py-2 text-2xl font-extrabold tabular-nums text-success">
+                    {progress}%
+                  </span>
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  Earn{" "}
+                  <span className="font-extrabold text-primary tabular-nums">
+                    {birr(remaining)}
+                  </span>{" "}
+                  more to unlock the withdrawal counter.
+                </p>
+
+                <div className="mt-5 h-3 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-warning transition-all duration-700"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex justify-between text-[11px] font-bold tabular-nums text-muted-foreground">
+                  <span>{birr(available)} earned</span>
+                  <span>{birr(minAmount)} goal</span>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Link
+                    to="/tasks"
+                    className="press flex items-center justify-center gap-2 rounded-2xl bg-accent py-3.5 text-sm font-extrabold text-accent-foreground"
+                  >
+                    Earn more <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    to="/wallet"
+                    className="press flex items-center justify-center rounded-2xl bg-secondary py-3.5 text-sm font-extrabold text-primary"
+                  >
+                    My wallet
+                  </Link>
                 </div>
               </div>
-              <div className="mt-5 h-2.5 w-full animate-pulse rounded-full bg-secondary" />
-              <p className="mt-4 text-sm text-muted-foreground">
-                Checking your withdrawal eligibility…
-              </p>
-            </div>
-          ) : !eligibility.has_package ? (
-            <div className="relative">
-              <div className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full bg-tint-orange/70 blur-2xl" />
-              <span className="relative grid h-12 w-12 place-items-center rounded-2xl bg-primary text-accent">
-                <LockKeyhole className="h-5 w-5" />
-              </span>
-              <h2 className="relative mt-4 text-xl font-extrabold tracking-tight">
-                Payouts locked
-              </h2>
-              <p className="relative mt-1.5 max-w-sm text-sm leading-6 text-muted-foreground">
-                Your first package unlocks the counter. Earn from it, then cash
-                out from {birr(minAmount)}.
-              </p>
-
-              <ol className="relative mt-5 space-y-0">
-                {[
-                  {
-                    icon: ShoppingBag,
-                    text: "Choose a package that fits you",
-                    hint: "Takes a minute",
-                  },
-                  {
-                    icon: Sparkles,
-                    text: "Claim daily income & task rewards",
-                    hint: "Every day",
-                  },
-                  {
-                    icon: ArrowUpRight,
-                    text: `Withdraw from ${birr(minAmount)}`,
-                    hint: "Mon – Sat",
-                  },
-                ].map(({ icon: Icon, text, hint }, i, list) => (
-                  <li key={text} className="relative flex gap-3 pb-4 last:pb-0">
-                    {i < list.length - 1 && (
-                      <span className="absolute left-[15px] top-8 h-[calc(100%-2rem)] w-px bg-border" />
-                    )}
-                    <span className="relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-primary ring-4 ring-card">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 pt-1">
-                      <span className="block text-sm font-bold">{text}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {hint}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-
-              <Link
-                to="/appliances"
-                className="press mt-5 flex items-center justify-center gap-2 rounded-2xl bg-accent py-3.5 font-extrabold text-accent-foreground"
-              >
-                Browse packages <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          ) : remaining > 0 ? (
-            <div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    Progress to payout
-                  </p>
-                  <h2 className="mt-1.5 text-xl font-extrabold tracking-tight">
-                    Almost there
-                  </h2>
-                </div>
-                <span className="shrink-0 rounded-2xl bg-tint-green px-3 py-2 text-2xl font-extrabold tabular-nums text-success">
-                  {progress}%
+            ) : (
+              <div className="flex items-center gap-3 rounded-2xl border border-success/35 bg-success/10 px-4 py-3.5">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-success text-success-foreground">
+                  <Check className="h-4.5 w-4.5" />
                 </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-extrabold text-success">
+                    You're eligible to withdraw
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Up to {birr(available)} · paid to your CBE account within
+                    1–48 hours.
+                  </p>
+                </div>
+                <CheckCircle2 className="ml-auto h-5 w-5 shrink-0 text-success/60" />
               </div>
-
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Earn{" "}
-                <span className="font-extrabold text-primary tabular-nums">
-                  {birr(remaining)}
-                </span>{" "}
-                more to unlock the withdrawal counter.
-              </p>
-
-              <div className="mt-5 h-3 overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-accent to-warning transition-all duration-700"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <div className="mt-2 flex justify-between text-[11px] font-bold tabular-nums text-muted-foreground">
-                <span>{birr(available)} earned</span>
-                <span>{birr(minAmount)} goal</span>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <Link
-                  to="/tasks"
-                  className="press flex items-center justify-center gap-2 rounded-2xl bg-accent py-3.5 text-sm font-extrabold text-accent-foreground"
-                >
-                  Earn more <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  to="/wallet"
-                  className="press flex items-center justify-center rounded-2xl bg-secondary py-3.5 text-sm font-extrabold text-primary"
-                >
-                  My wallet
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 rounded-2xl border border-success/35 bg-success/10 px-4 py-3.5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-success text-success-foreground">
-                <Check className="h-4.5 w-4.5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-extrabold text-success">
-                  You're eligible to withdraw
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Up to {birr(available)} · paid to your CBE account within 1–48
-                  hours.
-                </p>
-              </div>
-              <CheckCircle2 className="ml-auto h-5 w-5 shrink-0 text-success/60" />
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
 
         <OperatingWindow />
 
@@ -564,90 +508,7 @@ function Page() {
             />
           </section>
         )}
-
-        <section className="rounded-[28px] bg-card p-5 shadow-card">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
-                Guide
-              </p>
-              <h2 className="mt-1 text-lg font-extrabold tracking-tight">
-                How a payout works
-              </h2>
-            </div>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-tint-violet text-primary">
-              <CheckCircle2 className="h-5 w-5" />
-            </span>
-          </div>
-
-          <ol className="mt-5 space-y-0">
-            {[
-              {
-                n: "01",
-                title: "Request",
-                body: "Enter an amount and confirm your 13-digit CBE account.",
-                icon: ArrowUpRight,
-              },
-              {
-                n: "02",
-                title: "Review",
-                body: "Our team verifies the request within 1–48 hours.",
-                icon: RefreshCw,
-              },
-              {
-                n: "03",
-                title: "Paid",
-                body: "Funds land in your CBE account — once per day.",
-                icon: CheckCircle2,
-              },
-            ].map(({ n, title, body, icon: Icon }, i, list) => (
-              <li key={n} className="relative flex gap-3 pb-4 last:pb-0">
-                {i < list.length - 1 && (
-                  <span className="absolute left-[19px] top-10 h-[calc(100%-2.5rem)] w-px bg-border" />
-                )}
-                <span className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-surface text-primary ring-4 ring-card">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 pt-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-[11px] font-extrabold text-accent tabular-nums">
-                      {n}
-                    </span>
-                    <span className="text-sm font-extrabold">{title}</span>
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                    {body}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ol>
-
-          <p className="mt-4 flex items-start gap-1.5 rounded-2xl bg-surface p-3 text-xs leading-5 text-muted-foreground">
-            <ShieldNote />
-            Deposits and promo credits stay outside withdrawals. Only income
-            your package earns can be paid out.
-          </p>
-        </section>
       </div>
     </div>
-  );
-}
-
-function ShieldNote() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
   );
 }
