@@ -185,9 +185,12 @@ function Page() {
           method,
         },
       });
-    } catch {
+    } catch (error) {
       toast.error("Could not submit the recharge", {
-        description: "Check your connection and try again.",
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "Please try again.",
       });
       return;
     }

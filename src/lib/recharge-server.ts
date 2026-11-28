@@ -85,7 +85,28 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
       };
     }
 
-    const { supabaseAdmin } = await import("./supabase-admin");
+    if (!process.env["SUPABASE_SERVICE_ROLE_KEY"]) {
+      return {
+        ok: false,
+        outcome: "error",
+        message:
+          "Server payment configuration is missing. Set SUPABASE_SERVICE_ROLE_KEY in hosting.",
+      };
+    }
+
+    let supabaseAdmin: (typeof import("./supabase-admin"))["supabaseAdmin"];
+    try {
+      ({ supabaseAdmin } = await import("./supabase-admin"));
+    } catch (error) {
+      return {
+        ok: false,
+        outcome: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Server payment configuration is unavailable",
+      };
+    }
 
     // Never trust a client-supplied user id. The access token is the only
     // identity proof accepted here.
