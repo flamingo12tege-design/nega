@@ -65,7 +65,7 @@ alter table public.wallet_ledger
   add column if not exists description text;
 
 -- Recharge requests use wallet_ledger with status='pending' and type='recharge'.
--- Purchase users can only create pending recharge entries.
+-- Members can only create pending recharge entries at or above the ETB 1,300 minimum.
 drop policy if exists "Users create recharge requests" on public.wallet_ledger;
 create policy "Users create recharge requests"
 on public.wallet_ledger
@@ -75,6 +75,7 @@ with check (
   user_id = auth.uid()
   and type = 'recharge'
   and status = 'pending'
+  and amount >= 1300
 );
 
 -- Users can read their own ledger. Admin policy may require an admin role.
