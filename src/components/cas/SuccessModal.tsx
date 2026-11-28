@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
-import { CheckCircle2, Sparkles } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export type SuccessRow = { label: string; value: string };
 
@@ -15,24 +21,28 @@ type Props = {
 };
 
 /** Shared success card for claims and purchase requests. Errors keep using toasts. */
-export function SuccessModal({ open, onOpenChange, title, description, badge, rows, footer }: Props) {
+export function SuccessModal({
+  open,
+  onOpenChange,
+  title,
+  description,
+  badge,
+  rows,
+  footer,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-[28px] border-0 p-0 text-center shadow-2xl">
         <div className="bg-gradient-to-b from-success/15 via-card to-card px-6 pb-6 pt-7">
           <div className="relative mx-auto w-fit">
-            <span className="absolute -left-5 top-1 text-success/60">
-              <Sparkles className="h-4 w-4" />
-            </span>
             <span className="grid h-20 w-20 place-items-center rounded-full border-8 border-white bg-success text-white shadow-lg">
               <CheckCircle2 className="h-10 w-10" />
             </span>
-            <span className="absolute -right-4 bottom-1 text-success/60">
-              <Sparkles className="h-3 w-3" />
-            </span>
           </div>
           <DialogHeader className="mt-5">
-            <DialogTitle className="text-center text-2xl font-extrabold">{title}</DialogTitle>
+            <DialogTitle className="text-center text-2xl font-extrabold">
+              {title}
+            </DialogTitle>
             {description && (
               <DialogDescription className="mx-auto max-w-xs text-center text-sm">
                 {description}
@@ -50,9 +60,16 @@ export function SuccessModal({ open, onOpenChange, title, description, badge, ro
           {rows && rows.length > 0 && (
             <div className="divide-y rounded-2xl border bg-surface px-4 text-left">
               {rows.map((row) => (
-                <div key={row.label} className="flex items-center justify-between gap-3 py-3">
-                  <span className="text-xs text-muted-foreground">{row.label}</span>
-                  <span className="text-right text-sm font-extrabold">{row.value}</span>
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <span className="text-xs text-muted-foreground">
+                    {row.label}
+                  </span>
+                  <span className="text-right text-sm font-extrabold">
+                    {row.value}
+                  </span>
                 </div>
               ))}
             </div>

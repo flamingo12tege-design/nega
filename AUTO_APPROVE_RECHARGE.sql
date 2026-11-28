@@ -1,75 +1,35 @@
--- Auto-approve verified recharges
+-- Deposit approval policy: admin review only
 -- Run this in the Supabase SQL Editor. Safe to re-run.
 --
--- Fixes: auto deposit saying "Payment verified, awaiting admin approval".
--- The member flow was calling the ADMIN-ONLY approve_recharge RPC, so it could
--- never auto-approve. This adds an owner-only RPC for CBE-verified deposits
--- and also repairs the admin recharge RPCs (they contained a stray VALUES
--- statement that made them fail).
+-- Automatic deposit approval is DISABLED. A fake/incorrect CBE reference must
+-- never credit a wallet. This file replaces the old member-owned auto-approval
+-- RPC with a stub that always fails, and keeps the admin-only approve/reject
+-- RPCs working.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
 reset role;
 
--- 1) Member-owned auto approval. Only the row owner can call it, and only for
---    a pending recharge that has a transaction reference (i.e. was verified
---    by the CBE Check API before the row was created).
+-- 1) Deprecated auto-approval stub. Kept only so an old client that still calls
+--    it gets a clear error instead of silently completing a deposit. It never
+--    updates wallet_ledger or profiles.
 create or replace function public.auto_approve_recharge(p_ledger_id uuid)
 returns numeric
 language plpgsql
 security definer
 set search_path = public
 as $dep$
-declare
-  v_amount numeric;
-  v_user_id uuid;
-  v_ref text;
 begin
-  if auth.uid() is null then
-    raise exception 'Authentication required';
-  end if;
-
-  for v_user_id, v_amount, v_ref in
-    select user_id, amount, transaction_ref
-    from public.wallet_ledger
-    where id = p_ledger_id
-      and user_id = auth.uid()
-      and type = 'recharge'
-      and status = 'pending'
-      and transaction_ref is not null
-      and btrim(transaction_ref) <> ''
-    for update
-  loop
-    -- A verified CBE reference can only approve one deposit.
-    if exists (
-      select 1 from public.wallet_ledger l
-      where l.type = 'recharge'
-        and l.id <> p_ledger_id
-        and lower(coalesce(l.status, '')) <> 'rejected'
-        and l.transaction_ref = v_ref
-    ) then
-      raise exception 'This transaction reference was already used';
-    end if;
-
-    update public.wallet_ledger
-    set status = 'completed'
-    where id = p_ledger_id;
-
-    update public.profiles
-    set wallet_balance = coalesce(wallet_balance, 0) + v_amount
-    where id = v_user_id;
-
-    return v_amount;
-  end loop;
-
-  raise exception 'Recharge already processed or not found';
+  raise exception 'Automatic deposit approval is disabled. An admin must approve this deposit.';
 end;
 $dep$;
 
+-- No browser role may execute the deprecated auto-approval path.
 revoke all on function public.auto_approve_recharge(uuid) from public;
-grant execute on function public.auto_approve_recharge(uuid) to authenticated;
+revoke all on function public.auto_approve_recharge(uuid) from authenticated;
 
--- 2) Fix admin approval (removed the invalid bare VALUES statement).
+-- 2) Admin approval. Only an admin can complete a pending recharge and credit
+--    the member's wallet.
 create or replace function public.approve_recharge(p_ledger_id uuid)
 returns numeric
 language plpgsql
@@ -107,7 +67,7 @@ begin
 end;
 $dep$;
 
--- 3) Fix admin rejection.
+-- 3) Admin rejection.
 create or replace function public.reject_recharge(p_ledger_id uuid)
 returns void
 language plpgsql

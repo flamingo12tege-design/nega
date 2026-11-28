@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, RotateCw, Crown } from "lucide-react";
+import { RotateCw, Crown } from "lucide-react";
 import luckyWheelIcon from "@/assets/lucky-wheel.webp";
 import { PageHeader } from "@/components/cas/AppShell";
 import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
@@ -275,7 +275,7 @@ function Page() {
             className="press mt-6 flex items-center gap-2 rounded-full bg-gradient-to-b from-[#0e7a4a] to-[#075c36] px-9 py-3.5 font-bold text-white shadow-[0_6px_16px_rgba(14,122,74,0.35)] disabled:opacity-60"
           >
             {spinning ? (
-              <Sparkles className="h-4 w-4 animate-spin" />
+              <RotateCw className="h-4 w-4 animate-spin" />
             ) : (
               <RotateCw className="h-4 w-4" />
             )}

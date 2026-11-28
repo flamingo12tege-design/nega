@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { TicketPercent, Sparkles } from "lucide-react";
+import { Gift, TicketPercent } from "lucide-react";
 import giftIcon from "@/assets/gift.webp";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/cas/AppShell";
@@ -13,9 +13,15 @@ export const Route = createFileRoute("/gifts")({
   head: () => ({
     meta: [
       { title: "Redeem Gift Code — CAS" },
-      { name: "description", content: "Redeem your CAS gift code and receive your reward." },
+      {
+        name: "description",
+        content: "Redeem your CAS gift code and receive your reward.",
+      },
       { property: "og:title", content: "Redeem Gift Code — CAS" },
-      { property: "og:description", content: "Redeem your CAS gift code and receive your reward." },
+      {
+        property: "og:description",
+        content: "Redeem your CAS gift code and receive your reward.",
+      },
     ],
   }),
   component: Page,
@@ -45,29 +51,41 @@ function Page() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("redeem_gift_code", { p_code: normalized });
+      const { data, error } = await supabase.rpc("redeem_gift_code", {
+        p_code: normalized,
+      });
 
       if (error) {
         const message = error.message ?? "Could not redeem this gift code.";
-        if (/could not find the function|does not exist|unknown function/i.test(message)) {
+        if (
+          /could not find the function|does not exist|unknown function/i.test(
+            message,
+          )
+        ) {
           toast.error("Gift code redemption is not available yet", {
             description: "Please run the gift code SQL setup in Supabase.",
           });
           return;
         }
         if (/already redeemed|already used/i.test(message)) {
-          toast.error("Gift code already used", { description: "This code has already been redeemed." });
+          toast.error("Gift code already used", {
+            description: "This code has already been redeemed.",
+          });
           return;
         }
         if (/invalid|not found|expired/i.test(message)) {
-          toast.error("Invalid gift code", { description: "Check the code and try again." });
+          toast.error("Invalid gift code", {
+            description: "Check the code and try again.",
+          });
           return;
         }
         toast.error("Could not redeem gift code", { description: message });
         return;
       }
 
-      const result = (data && typeof data === "object" ? data : {}) as RedeemResult;
+      const result = (
+        data && typeof data === "object" ? data : {}
+      ) as RedeemResult;
       const amount = Number(result.amount);
       const hasAmount = Number.isFinite(amount) && amount > 0;
       const redeemedCode = String(result.code ?? normalized).toUpperCase();
@@ -79,7 +97,9 @@ function Page() {
       setCode("");
       void queryClient.invalidateQueries({ queryKey: walletQueryKey });
     } catch {
-      toast.error("Could not redeem gift code", { description: "Please try again." });
+      toast.error("Could not redeem gift code", {
+        description: "Please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -93,10 +113,18 @@ function Page() {
         <section className="relative overflow-hidden rounded-3xl bg-primary p-6 text-primary-foreground shadow-card">
           <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-accent/20 blur-3xl" />
           <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-accent/15 p-1.5">
-            <img src={giftIcon} alt="" className="h-full w-full object-contain" />
+            <img
+              src={giftIcon}
+              alt=""
+              className="h-full w-full object-contain"
+            />
           </span>
-          <p className="relative mt-4 text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">Gift code</p>
-          <h2 className="relative mt-1 text-2xl font-extrabold tracking-tight">Redeem your reward</h2>
+          <p className="relative mt-4 text-[11px] font-extrabold uppercase tracking-[0.2em] text-accent">
+            Gift code
+          </p>
+          <h2 className="relative mt-1 text-2xl font-extrabold tracking-tight">
+            Redeem your reward
+          </h2>
           <p className="relative mt-2 max-w-sm text-sm text-primary-foreground/75">
             Enter your gift code below to claim your CAS reward.
           </p>
@@ -133,12 +161,13 @@ function Page() {
         <section className="rounded-2xl bg-card p-4 shadow-card">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
-              <Sparkles className="h-5 w-5" />
+              <Gift className="h-5 w-5" />
             </span>
             <div>
               <p className="font-bold">How it works</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Gift codes can be redeemed once. After a successful redemption, your reward is added to your account.
+                Gift codes can be redeemed once. After a successful redemption,
+                your reward is added to your account.
               </p>
             </div>
           </div>
@@ -147,9 +176,15 @@ function Page() {
 
       <RedeemSuccessModal
         open={success !== null}
-        onOpenChange={(open) => { if (!open) setSuccess(null); }}
+        onOpenChange={(open) => {
+          if (!open) setSuccess(null);
+        }}
         amount={success?.amount ?? 0}
-        message={success?.amount ? undefined : "Your gift has been applied successfully."}
+        message={
+          success?.amount
+            ? undefined
+            : "Your gift has been applied successfully."
+        }
       />
     </div>
   );

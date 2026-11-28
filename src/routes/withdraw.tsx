@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Clock3,
   RefreshCw,
-  Sparkles,
   Timer,
 } from "lucide-react";
 import { etb } from "@/lib/format";
@@ -346,7 +345,7 @@ function Page() {
           <div className="relative flex items-start justify-between gap-3">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-accent">
-                <Sparkles className="h-3.5 w-3.5" /> Payout counter
+                Payout counter
               </span>
               <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary-foreground/55">
                 Available to withdraw
