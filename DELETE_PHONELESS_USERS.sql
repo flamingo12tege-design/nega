@@ -101,8 +101,13 @@ begin
   end if;
 
   -- Direct deletes from storage.objects are blocked by Supabase.
-  -- Proof files are left in storage; only their ledger links are removed.
-  v_deleted_proofs := 0;
+  -- Count the proof paths before the ledger rows disappear, then leave the
+  -- files in storage for a separate Storage API cleanup.
+  select count(distinct proof_url)
+  into v_deleted_proofs
+  from public.wallet_ledger
+  where user_id = any (v_target)
+    and proof_url is not null;
 
   delete from public.wallet_ledger where user_id = any (v_target);
   get diagnostics v_deleted_ledger = row_count;
