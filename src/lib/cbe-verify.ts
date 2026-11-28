@@ -12,6 +12,11 @@ export type CbeVerifyResult = {
   code?: string | undefined;
   /** Present only when the bank API itself reports the paid amount. */
   verifiedAmount?: number | undefined;
+  /** Bank-reported reference, which is safer than an OCR/client guess. */
+  verifiedRef?: string | undefined;
+  /** Detector/OCR candidate, never trusted for approval on its own. */
+  candidateRef?: string | undefined;
+  source?: "check-et" | "links-image" | "links-url" | undefined;
 };
 
 type CbeVerifyResponse = {

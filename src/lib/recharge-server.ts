@@ -1,5 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { verifyCbePaymentRequest } from "@/lib/cbe-verify";
+import {
+  verifyCbePaymentRequest,
+  type CbeVerifyResult,
+} from "@/lib/cbe-verify";
+import {
+  isLinksEtConfigured,
+  verifyCbeByImage,
+  verifyCbeByReference,
+} from "@/lib/links-et";
 import { depositAccount as defaultDepositAccount } from "@/lib/mock-data";
 
 export type SubmitRechargeInput = {
@@ -16,6 +24,7 @@ export type SubmitRechargeResult = {
   outcome: "approved" | "manual_review" | "rejected" | "error";
   ledgerId?: string | null;
   amount?: number | undefined;
+  verifiedRef?: string | undefined;
   message?: string | undefined;
   code?: string | undefined;
 };
@@ -61,6 +70,8 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
       .trim()
       .toUpperCase();
     const method = String(input.method ?? "CBE").slice(0, 40) || "CBE";
+    // The bank-reported reference replaces any client/OCR guess once verified.
+    let ledgerRef = transactionRef;
 
     if (
       !Number.isFinite(amount) ||
@@ -107,6 +118,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
           "minimum_deposit_amount",
           "maximum_deposit_amount",
           "deposit_account",
+          "deposit_name",
         ]),
     ]);
 
@@ -145,7 +157,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
         await supabaseAdmin.from("deposit_verification_logs").insert({
           user_id: userId,
           amount,
-          transaction_ref: transactionRef || null,
+          transaction_ref: ledgerRef || null,
           proof_url: proofPath || null,
           reason: reason || "Payment verification failed",
           outcome,
@@ -158,19 +170,83 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
     const depositAccount =
       String(settings["deposit_account"] ?? "").trim() ||
       defaultDepositAccount.account;
+    const receiverName = String(settings["deposit_name"] ?? "").trim();
+    const linksEnabled = isLinksEtConfigured();
 
-    const verification = transactionRef
-      ? await verifyCbePaymentRequest({
-          transactionNumber: transactionRef,
-          accountNumber: depositAccount,
-        })
-      : {
+    let verification: CbeVerifyResult = {
+      ok: false,
+      approved: false,
+      transient: true,
+      code: "MISSING_PROOF",
+      message: "No screenshot or transaction reference was provided",
+    };
+
+    // A screenshot is verified at the source by links.et. We read the stored
+    // file on the server so the browser never handles the API key or the
+    // bank-side request.
+    if (proofPath && linksEnabled) {
+      try {
+        const { data: imageBlob } = await supabaseAdmin.storage
+          .from("recharge-proofs")
+          .download(proofPath);
+        if (imageBlob) {
+          const bytes = new Uint8Array(await imageBlob.arrayBuffer());
+          verification = await verifyCbeByImage({
+            imageBase64: Buffer.from(bytes).toString("base64"),
+            accountNumber: depositAccount,
+            amount,
+            receiverName,
+          });
+        }
+      } catch {
+        verification = {
           ok: false,
           approved: false,
           transient: true,
-          message: "No transaction reference was provided",
-          code: "MISSING_REFERENCE",
+          code: "IMAGE_READ_FAILED",
+          message: "Screenshot could not be read for verification",
         };
+      }
+    }
+
+    // If the screenshot could not be confirmed for a temporary reason, fall
+    // back to transaction verification. The detector's reference is only a
+    // candidate; the bank verifier decides whether it is real.
+    const fallbackRef = transactionRef || verification.candidateRef || "";
+    // A detector guess is a candidate, not proof. Only a member-typed
+    // reference is safe to reject; a bad guess should go to manual review.
+    const canTrustRejection = Boolean(transactionRef);
+    if (verification.transient && fallbackRef) {
+      const linksRefResult = linksEnabled
+        ? await verifyCbeByReference({
+            reference: fallbackRef,
+            accountNumber: depositAccount,
+            amount,
+            receiverName,
+          })
+        : null;
+
+      const referenceResult =
+        linksRefResult && (!linksRefResult.transient || linksRefResult.approved)
+          ? linksRefResult
+          : await verifyCbePaymentRequest({
+              transactionNumber: fallbackRef,
+              accountNumber: depositAccount,
+            });
+
+      if (
+        referenceResult.approved ||
+        (canTrustRejection && !referenceResult.transient)
+      ) {
+        verification = referenceResult;
+      }
+    }
+
+    ledgerRef = String(verification.verifiedRef || transactionRef || "")
+      .replace(/\s+/g, "")
+      .trim()
+      .toUpperCase()
+      .slice(0, 80);
 
     // If the bank API reports the paid amount, it is authoritative.
     if (
@@ -208,7 +284,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
         amount,
         type: "recharge",
         status: "pending",
-        transaction_ref: transactionRef || null,
+        transaction_ref: ledgerRef || null,
         proof_url: proofPath || null,
         description: `CBE recharge via ${method}`,
       })
@@ -237,7 +313,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
         await supabaseAdmin.rpc("finalize_verified_recharge", {
           p_ledger_id: ledgerId,
           p_verified_amount: amount,
-          p_verified_ref: transactionRef,
+          p_verified_ref: ledgerRef,
         });
 
       if (!finalizeError) {
@@ -246,6 +322,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
           outcome: "approved",
           ledgerId,
           amount: Number(creditedAmount ?? amount),
+          verifiedRef: ledgerRef || undefined,
           message: "Payment verified — recharge auto-approved",
         };
       }
@@ -259,6 +336,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
         outcome: "manual_review",
         ledgerId,
         amount,
+        verifiedRef: ledgerRef || undefined,
         message: `Payment verified, awaiting admin approval: ${finalizeError.message}`,
       };
     }
@@ -272,6 +350,7 @@ const submitVerifiedRechargeFn = createServerFn({ method: "POST" }).handler(
       outcome: "manual_review",
       ledgerId,
       amount,
+      verifiedRef: ledgerRef || undefined,
       message: "Sent for manual review",
     };
   },

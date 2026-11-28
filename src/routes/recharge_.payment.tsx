@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Copy, Hash, ImageUp, Loader2 } from "lucide-react";
+import { Check, Copy, Hash, ImageUp } from "lucide-react";
 import { etb } from "@/lib/format";
-import { ocrImage } from "@/lib/ocr-server";
 import { submitVerifiedRecharge } from "@/lib/recharge-server";
 import { PageHeader } from "@/components/cas/AppShell";
 import { supabase } from "@/lib/supabase";
@@ -61,9 +60,6 @@ function Page() {
   const [fileName, setFileName] = useState("");
   const [txn, setTxn] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [ocrState, setOcrState] = useState<
-    "idle" | "scanning" | "found" | "not-found"
-  >("idle");
   const [submitting, setSubmitting] = useState(false);
 
   const { userId } = useSessionUser();
@@ -71,68 +67,12 @@ function Page() {
   const phoneReady = hasValidPhone(profileQuery.data?.phone);
   const phoneBlocked = !profileQuery.isLoading && !phoneReady;
 
-  /** OCR.space's free tier rejects files over 1 MB, so downscale big screenshots first. */
-  const compressForOcr = async (file: File): Promise<File> => {
-    if (!file.type.startsWith("image/") || file.size <= 900_000) return file;
-    try {
-      const bitmap = await createImageBitmap(file);
-      const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return file;
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.85),
-      );
-      if (!blob) return file;
-      return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.jpg`, {
-        type: "image/jpeg",
-      });
-    } catch {
-      return file;
-    }
-  };
-
-  /** Scan a screenshot and return the detected CBE transaction number, if any. */
-  const scanTransaction = async (file: File): Promise<string | null> => {
-    try {
-      const scanFile = await compressForOcr(file);
-      const { data: sessionData } = await supabase.auth.getSession();
-      const formData = new FormData();
-      formData.append("file", scanFile);
-      formData.append("access_token", sessionData.session?.access_token ?? "");
-      const result = await ocrImage({ data: formData });
-      return result?.ok && result.txn ? result.txn : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const runOcr = async (file: File) => {
-    setOcrState("scanning");
-    const found = await scanTransaction(file);
-    if (found) {
-      setTxn(found);
-      setOcrState("found");
-      toast.success("Transaction detected", { description: found });
-    } else {
-      setOcrState("not-found");
-      toast.error("No transaction found", {
-        description:
-          "Couldn't read a transaction reference from that image — type it manually or upload a clearer screenshot.",
-      });
-    }
-  };
-
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setProof(URL.createObjectURL(file));
     setFileName(file.name);
     setProofFile(file);
-    void runOcr(file);
   };
 
   const settingsQuery = usePlatformSettings([
@@ -201,20 +141,9 @@ function Page() {
       return;
     }
 
-    // If the member uploaded a screenshot but did not type a reference, scan
-    // it now so instant approval still works even if the background OCR was
-    // still running when they pressed submit.
-    let reference = txn.trim();
-    if (!reference && proofFile) {
-      setOcrState("scanning");
-      reference = (await scanTransaction(proofFile)) ?? "";
-      if (reference) {
-        setTxn(reference);
-        setOcrState("found");
-      } else {
-        setOcrState("not-found");
-      }
-    }
+    // The server reads the screenshot directly from links.et when the member
+    // uploads one; a typed FT reference remains a valid alternative.
+    const reference = txn.trim();
 
     if (!proofFile && !reference) {
       toast.error("Add a screenshot or transaction number");
@@ -287,7 +216,7 @@ function Page() {
           amount,
           method,
           proof: Boolean(proofFile),
-          txn: reference,
+          txn: result.verifiedRef ?? reference,
           approved: true,
         },
       });
@@ -389,7 +318,7 @@ function Page() {
                 <p className="truncate text-sm font-bold">{fileName}</p>
                 <p className="flex items-center gap-1 text-xs text-success">
                   <Check className="h-3.5 w-3.5" />
-                  Screenshot attached
+                  Verified with the bank on submit
                 </p>
               </div>
               <label className="shrink-0 cursor-pointer text-xs font-bold text-accent">
@@ -411,7 +340,7 @@ function Page() {
                 Upload screenshot
               </span>
               <span className="text-xs text-muted-foreground">
-                PNG or JPG of your CBE transfer
+                PNG or JPG — checked with the bank on submit
               </span>
               <input
                 type="file"
@@ -422,13 +351,6 @@ function Page() {
             </label>
           )}
 
-          {ocrState === "scanning" && (
-            <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-accent">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning receipt
-              with OCR…
-            </p>
-          )}
-
           <div className="my-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <span className="h-px flex-1 bg-border" />
             or
@@ -437,7 +359,7 @@ function Page() {
 
           <label className="block">
             <span className="text-xs font-semibold">
-              Transaction number / SMS reference
+              Transaction number / FT reference (optional with screenshot)
             </span>
             <span className="mt-1 flex items-center gap-2 rounded-xl border bg-surface px-3 focus-within:border-accent">
               <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -468,7 +390,7 @@ function Page() {
           </p>
         ) : (
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Your wallet is credited after the payment is verified.
+            Your wallet is credited after the bank confirms the payment.
           </p>
         )}
       </div>
