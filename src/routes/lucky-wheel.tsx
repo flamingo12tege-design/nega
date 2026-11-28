@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, RotateCw, Info, Crown } from "lucide-react";
+import { Sparkles, RotateCw, Crown } from "lucide-react";
 import luckyWheelIcon from "@/assets/lucky-wheel.webp";
 import { PageHeader } from "@/components/cas/AppShell";
 import { RedeemSuccessModal } from "@/components/cas/RedeemSuccessModal";
@@ -20,14 +20,12 @@ export const Route = createFileRoute("/lucky-wheel")({
       { title: "Lucky Wheel — CAS" },
       {
         name: "description",
-        content:
-          "Spin for ETB 10-50. VIP2+ get better odds; locked/VIP5+ can hit the rare ETB 2,000 jackpot.",
+        content: "Spin for a surprise reward.",
       },
       { property: "og:title", content: "Lucky Wheel — CAS" },
       {
         property: "og:description",
-        content:
-          "Spin for ETB 10-50. VIP2+ get better odds; locked/VIP5+ can hit the rare ETB 2,000 jackpot.",
+        content: "Spin for a surprise reward.",
       },
     ],
   }),
@@ -205,20 +203,6 @@ function Page() {
           </p>
         </section>
 
-        {/* How spins are earned */}
-        <section className="flex items-start gap-3 rounded-2xl bg-card p-4 shadow-card">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
-            <Info className="h-4 w-4" />
-          </span>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Spins are earned, never given for free: one for your first approved
-            package, plus one for each invited friend who activates a package.
-            VIP2+ members get better odds at {etb(20)}-{etb(50)}. The rare{" "}
-            {etb(2000)} prize stays reserved for locked-package and VIP5+
-            members.
-          </p>
-        </section>
-
         <section className="flex flex-col items-center rounded-3xl bg-card px-5 pb-7 pt-8 shadow-card">
           {/* Wheel assembly */}
           <div className="relative h-[300px] w-[300px] max-w-full select-none">
@@ -328,12 +312,12 @@ function Page() {
             {!spinsLoading && spinsAvailable === 0 && (
               <p className="max-w-xs text-center text-xs leading-5 text-muted-foreground">
                 {!userId
-                  ? "Sign in to check your earned spins."
+                  ? "Sign in to check your spins."
                   : spinsRuleUnavailable
                     ? "Ask an administrator to run the latest LUCKY_WHEEL.sql so spins can be checked."
                     : spinsError
                       ? spinsError
-                      : "No free spins. Activate your first package, or invite a friend who activates theirs, to earn one."}
+                      : "No spin available right now."}
               </p>
             )}
 

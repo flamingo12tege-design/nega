@@ -2,14 +2,11 @@
 -- Run this in the Supabase SQL Editor. Safe to re-run.
 --
 -- The server picks the prize with weighted odds, so the client cannot choose
--- ETB 50 every time. Spins are earned, never given for free: one for the
--- caller's first approved package, plus one for each invited friend with an
--- approved package.
+-- ETB 50 every time. Spin eligibility is checked inside the secure functions.
 --
 -- Wheel prizes: ETB 10 / 20 / 30 / 40 / 50 / Try again.
--- Most spins land on ETB 10 or Try again. VIP2+ members get better odds at the
--- higher amounts. The rare ETB 2,000 prize stays reserved for locked-package
--- or upper-tier VIP members.
+-- Weighting favors ETB 10 and Try again. The ETB 2,000 slice is gated by
+-- platform settings.
 
 reset role;
 
@@ -135,10 +132,10 @@ as $wheel$
   );
 $wheel$;
 
--- Spins are earned, never given for free:
+-- Spin availability:
 --   +1 for the caller's first approved package
 --   +1 for each direct recruit with at least one approved package
--- Every recorded spin (including "Try again") consumes one earned spin.
+-- Every recorded spin (including "Try again") consumes one spin.
 drop function if exists public.lucky_wheel_spins_available();
 create or replace function public.lucky_wheel_spins_available()
 returns integer
