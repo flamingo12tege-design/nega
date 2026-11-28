@@ -82,6 +82,15 @@ const deviceLabel = (ua: string | null) => {
   return "Web browser";
 };
 
+const hasValidPhone = (value: unknown) => {
+  const phone = String(value ?? "").replace(/[^\d+]/g, "");
+  return (
+    /^\+251[79]\d{8}$/.test(phone) ||
+    /^251[79]\d{8}$/.test(phone) ||
+    /^0[79]\d{8}$/.test(phone)
+  );
+};
+
 const adminSecurityPoints = [
   { icon: ShieldCheck, title: "Role-protected", text: "Only administrator accounts can open this console." },
   { icon: Globe, title: "IP address logged", text: "Every action records the source IP and device." },
@@ -313,7 +322,7 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [adjustment, setAdjustment] = useState("");
-  const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; member_id: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
+  const [pendingRecharges, setPendingRecharges] = useState<Array<{ id: string; user_id: string; member_id: string | null; phone: string | null; amount: number; transaction_ref: string | null; proof_url: string | null; created_at: string }>>([]);
   const [proofPreview, setProofPreview] = useState<{ id: string; url: string } | null>(null);
   const [depositStats, setDepositStats] = useState({ users: 0, amount: 0 });
   const [activePackages, setActivePackages] = useState(0);
@@ -430,12 +439,13 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
       .order("created_at", { ascending: false });
     if (error) return;
     const rows = (data ?? []).map((row) => ({ ...row, amount: Number(row.amount) }));
-    setPendingRecharges(rows.map((r) => ({ ...r, member_id: null })));
+    setPendingRecharges(rows.map((r) => ({ ...r, member_id: null, phone: null })));
     const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
     if (userIds.length === 0) return;
-    const { data: profiles } = await supabase.from("profiles").select("id,member_id").in("id", userIds);
+    const { data: profiles } = await supabase.from("profiles").select("id,member_id,phone").in("id", userIds);
     const memberMap = new Map((profiles ?? []).map((p) => [p.id, p.member_id]));
-    setPendingRecharges(rows.map((r) => ({ ...r, member_id: memberMap.get(r.user_id) ?? null })));
+    const phoneMap = new Map((profiles ?? []).map((p) => [p.id, p.phone]));
+    setPendingRecharges(rows.map((r) => ({ ...r, member_id: memberMap.get(r.user_id) ?? null, phone: phoneMap.get(r.user_id) ?? null })));
   };
 
   const loadPendingWithdrawals = async () => {
@@ -1221,12 +1231,17 @@ function Page({ onSignOut, adminEmail }: { onSignOut: () => void; adminEmail: st
                   ) : pendingRecharges.map((row) => (
                     <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold">{etb(row.amount)}</p>
+                        <p className="flex flex-wrap items-center gap-2 font-bold">
+                          {etb(row.amount)}
+                          {!hasValidPhone(row.phone) && (
+                            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-bold text-destructive">No phone</span>
+                          )}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">Member {row.member_id || row.user_id} · {row.transaction_ref || "No transaction reference"} · {fmtDate(row.created_at)}</p>
                         {row.proof_url && <button type="button" onClick={async () => { const { data } = await supabase.storage.from("recharge-proofs").createSignedUrl(row.proof_url!, 300); if (data?.signedUrl) setProofPreview({ id: row.id, url: data.signedUrl }); }} className="mt-1 text-xs font-bold text-accent">View screenshot</button>}
                       </div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => void approveRecharge(row.id)} className="rounded-lg bg-success px-3 py-2 text-xs font-bold text-success-foreground">Approve</button>
+                        <button type="button" disabled={!hasValidPhone(row.phone)} onClick={() => void approveRecharge(row.id)} className="rounded-lg bg-success px-3 py-2 text-xs font-bold text-success-foreground disabled:bg-muted disabled:text-muted-foreground">Approve</button>
                         <button type="button" onClick={() => void rejectRecharge(row.id)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-destructive">Reject</button>
                       </div>
                     </div>

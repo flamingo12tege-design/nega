@@ -1,5 +1,42 @@
 -- Run this in Supabase SQL Editor
 
+-- Phone gate helpers. Also defined in PHONE_GUARD.sql and
+-- AUTO_APPROVE_RECHARGE.sql so these files stay safe to re-run in any order.
+create or replace function public.normalized_ethiopian_phone(p_phone text)
+returns text
+language plpgsql
+immutable
+security definer
+set search_path = public
+as $auth$
+declare
+  v_phone text := regexp_replace(btrim(coalesce(p_phone, '')), '[^0-9+]', '', 'g');
+begin
+  if v_phone ~ '^\+251[79][0-9]{8}$' then
+    return v_phone;
+  elsif v_phone ~ '^251[79][0-9]{8}$' then
+    return '+' || v_phone;
+  elsif v_phone ~ '^0[79][0-9]{8}$' then
+    return '+251' || substring(v_phone from 2);
+  end if;
+  return null;
+end;
+$auth$;
+
+create or replace function public.has_valid_deposit_phone(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $auth$
+  select coalesce((
+    select public.normalized_ethiopian_phone(p.phone) is not null
+    from public.profiles p
+    where p.id = p_user_id
+  ), false);
+$auth$;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -76,6 +113,7 @@ with check (
   and type = 'recharge'
   and status = 'pending'
   and amount >= 1300
+  and public.has_valid_deposit_phone(auth.uid())
 );
 
 -- Users can read their own ledger. Admin policy may require an admin role.

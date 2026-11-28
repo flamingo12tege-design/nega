@@ -7,7 +7,8 @@
 --   1. minimum deposit read from platform_settings (default ETB 1,300),
 --   2. no sub-minimum recharge insert/update (RLS + trigger),
 --   3. no approval of a sub-minimum or duplicate-reference row,
---   4. approval_source recorded so admin history can say "API approved" vs
+--   4. no deposit from an account without a valid stored phone number,
+--   5. approval_source recorded so admin history can say "API approved" vs
 --      "Admin approved" without guessing from old rows.
 
 -- Supabase SQL Editor may be impersonating "authenticated".
@@ -16,6 +17,49 @@ reset role;
 
 alter table public.wallet_ledger
   add column if not exists approval_source text;
+
+-- Phone gate helpers. Also defined in PHONE_GUARD.sql so either file can be run
+-- on its own; re-running either one keeps them in sync.
+create or replace function public.normalized_ethiopian_phone(p_phone text)
+returns text
+language plpgsql
+immutable
+security definer
+set search_path = public
+as $dep$
+declare
+  v_phone text := regexp_replace(btrim(coalesce(p_phone, '')), '[^0-9+]', '', 'g');
+begin
+  if v_phone ~ '^\+251[79][0-9]{8}$' then
+    return v_phone;
+  elsif v_phone ~ '^251[79][0-9]{8}$' then
+    return '+' || v_phone;
+  elsif v_phone ~ '^0[79][0-9]{8}$' then
+    return '+251' || substring(v_phone from 2);
+  end if;
+  return null;
+end;
+$dep$;
+
+revoke all on function public.normalized_ethiopian_phone(text) from public;
+grant execute on function public.normalized_ethiopian_phone(text) to authenticated;
+
+create or replace function public.has_valid_deposit_phone(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $dep$
+  select coalesce((
+    select public.normalized_ethiopian_phone(p.phone) is not null
+    from public.profiles p
+    where p.id = p_user_id
+  ), false);
+$dep$;
+
+revoke all on function public.has_valid_deposit_phone(uuid) from public;
+grant execute on function public.has_valid_deposit_phone(uuid) to authenticated;
 
 -- 1) Single source of truth for the minimum, editable in platform_settings.
 create or replace function public.minimum_deposit_amount()
@@ -48,6 +92,7 @@ with check (
   and type = 'recharge'
   and status = 'pending'
   and amount >= public.minimum_deposit_amount()
+  and public.has_valid_deposit_phone(auth.uid())
 );
 
 -- 3) Backstop for service-role/admin inserts and amount edits.
@@ -61,6 +106,13 @@ begin
   if new.type = 'recharge' and new.amount < public.minimum_deposit_amount() then
     raise exception 'Minimum deposit is ETB %', public.minimum_deposit_amount();
   end if;
+
+  if new.type in ('recharge', 'deposit')
+     and new.status in ('pending', 'completed')
+     and not public.has_valid_deposit_phone(new.user_id) then
+    raise exception 'A valid phone number is required before a deposit can be submitted or approved';
+  end if;
+
   return new;
 end;
 $dep$;
@@ -69,7 +121,7 @@ revoke all on function public.enforce_minimum_deposit() from public;
 
 drop trigger if exists wallet_ledger_minimum_deposit on public.wallet_ledger;
 create trigger wallet_ledger_minimum_deposit
-before insert or update of amount, type
+before insert or update of amount, type, status, user_id
 on public.wallet_ledger
 for each row execute function public.enforce_minimum_deposit();
 
@@ -103,6 +155,7 @@ begin
       and type = 'recharge'
       and status = 'pending'
       and amount >= v_min
+      and public.has_valid_deposit_phone(user_id)
       and transaction_ref is not null
       and btrim(transaction_ref) <> ''
     for update
@@ -159,6 +212,7 @@ begin
     where id = p_ledger_id
       and type = 'recharge'
       and status = 'pending'
+      and public.has_valid_deposit_phone(user_id)
     for update
   loop
     if v_amount < public.minimum_deposit_amount() then

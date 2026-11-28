@@ -10,6 +10,43 @@
 -- Reset to the session owner (session_user = postgres) so DDL is allowed.
 reset role;
 
+-- Phone gate helpers. Also defined in PHONE_GUARD.sql so this file can be run
+-- on its own and still reject phone-less bot signups.
+create or replace function public.normalized_ethiopian_phone(p_phone text)
+returns text
+language plpgsql
+immutable
+security definer
+set search_path = public
+as $bonus$
+declare
+  v_phone text := regexp_replace(btrim(coalesce(p_phone, '')), '[^0-9+]', '', 'g');
+begin
+  if v_phone ~ '^\+251[79][0-9]{8}$' then
+    return v_phone;
+  elsif v_phone ~ '^251[79][0-9]{8}$' then
+    return '+' || v_phone;
+  elsif v_phone ~ '^0[79][0-9]{8}$' then
+    return '+251' || substring(v_phone from 2);
+  end if;
+  return null;
+end;
+$bonus$;
+
+create or replace function public.has_valid_deposit_phone(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $bonus$
+  select coalesce((
+    select public.normalized_ethiopian_phone(p.phone) is not null
+    from public.profiles p
+    where p.id = p_user_id
+  ), false);
+$bonus$;
+
 -- Editable rules (same table used by TEAM_COMMISSION.sql).
 create table if not exists public.platform_settings (
   key text primary key,
@@ -42,6 +79,10 @@ declare
 begin
   if v_user_id is null then
     raise exception 'Authentication required';
+  end if;
+
+  if not public.has_valid_deposit_phone(v_user_id) then
+    raise exception 'A valid phone number is required before claiming the welcome bonus';
   end if;
 
   -- Lock the profile so a double tap cannot credit the bonus twice.

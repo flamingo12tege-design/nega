@@ -11,7 +11,16 @@ import {
   depositAccount as defaultDepositAccount,
   rewardRules,
 } from "@/lib/mock-data";
-import { usePlatformSettings } from "@/lib/queries";
+import { usePlatformSettings, useProfile, useSessionUser } from "@/lib/queries";
+
+const hasValidPhone = (value: unknown): boolean => {
+  const phone = String(value ?? "").replace(/[^\d+]/g, "");
+  return (
+    /^\+251[79]\d{8}$/.test(phone) ||
+    /^251[79]\d{8}$/.test(phone) ||
+    /^0[79]\d{8}$/.test(phone)
+  );
+};
 
 const validRechargeAmount = (value: unknown): number => {
   const amount = Number(value);
@@ -55,6 +64,11 @@ function Page() {
     "idle" | "scanning" | "found" | "not-found"
   >("idle");
   const [submitting, setSubmitting] = useState(false);
+
+  const { userId } = useSessionUser();
+  const profileQuery = useProfile(userId);
+  const phoneReady = hasValidPhone(profileQuery.data?.phone);
+  const phoneBlocked = !profileQuery.isLoading && !phoneReady;
 
   /** OCR.space's free tier rejects files over 1 MB, so downscale big screenshots first. */
   const compressForOcr = async (file: File): Promise<File> => {
@@ -163,6 +177,21 @@ function Page() {
     const userId = sessionData.session?.user.id;
     if (!userId) {
       toast.error("Please log in first");
+      return;
+    }
+
+    // The database also enforces this. Check here as well so a blocked account
+    // gets a clear message before any proof is uploaded or API call is made.
+    const { data: memberProfile } = await supabase
+      .from("profiles")
+      .select("phone")
+      .eq("id", userId)
+      .maybeSingle();
+    if (!hasValidPhone(memberProfile?.phone)) {
+      toast.error("A phone number is required to deposit", {
+        description:
+          "Register with a valid Ethiopian mobile number before recharging.",
+      });
       return;
     }
 
@@ -475,14 +504,24 @@ function Page() {
 
         <button
           onClick={submit}
-          disabled={submitting}
+          disabled={submitting || phoneBlocked}
           className="press mt-5 w-full rounded-2xl bg-accent py-4 font-extrabold text-accent-foreground disabled:bg-muted disabled:text-muted-foreground"
         >
-          {submitting ? "Verifying payment…" : "Submit proof"}
+          {phoneBlocked
+            ? "Phone number required"
+            : submitting
+              ? "Verifying payment…"
+              : "Submit proof"}
         </button>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          Your wallet is credited after the payment is verified.
-        </p>
+        {phoneBlocked ? (
+          <p className="mt-3 text-center text-xs font-bold text-destructive">
+            Register with a valid Ethiopian mobile number before depositing.
+          </p>
+        ) : (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Your wallet is credited after the payment is verified.
+          </p>
+        )}
       </div>
     </div>
   );
